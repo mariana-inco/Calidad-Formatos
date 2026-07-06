@@ -93,7 +93,7 @@ export function GestionCambioDetalle({
       setError("Selecciona si el cambio fue eficaz.");
       return false;
     }
-    if (!requireText(seguimiento.observaciones, "Las observaciones del seguimiento son obligatorias.")) return false;
+    if (seguimiento.cambioEficaz === "NO" && !requireText(seguimiento.observaciones, "Las observaciones del seguimiento son obligatorias cuando el cambio no fue eficaz.")) return false;
     if (!requireText(seguimiento.acciones, "Las acciones del seguimiento son obligatorias.")) return false;
     if (!requireText(seguimiento.nombreCierre, "El nombre de quien realiza seguimiento y cierre es obligatorio.")) return false;
     if (!requireText(seguimiento.cargoCierre, "El cargo es obligatorio.")) return false;
@@ -109,7 +109,10 @@ export function GestionCambioDetalle({
 
   const approveWithSeguimiento = () => {
     if (!validateSeguimiento()) return;
-    onWorkflowAction?.("VALIDAR_REMITIR", { validacionCalidad: seguimiento.observaciones, seguimiento });
+    onWorkflowAction?.("VALIDAR_REMITIR", {
+      validacionCalidad: seguimiento.cambioEficaz === "SI" ? "Cambio eficaz" : seguimiento.observaciones,
+      seguimiento,
+    });
   };
 
   const closeFormat = () => {
@@ -131,7 +134,16 @@ export function GestionCambioDetalle({
           <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">¿El cambio fue eficaz?</span>
           <select
             value={seguimiento.cambioEficaz}
-            onChange={(event) => setSeguimiento((current) => ({ ...current, cambioEficaz: event.target.value as SeguimientoCambioData["cambioEficaz"] }))}
+            onChange={(event) =>
+              setSeguimiento((current) => {
+                const cambioEficaz = event.target.value as SeguimientoCambioData["cambioEficaz"];
+                return {
+                  ...current,
+                  cambioEficaz,
+                  observaciones: cambioEficaz === "SI" ? "" : current.observaciones,
+                };
+              })
+            }
             className={inputClassName}
           >
             <option value="">Seleccione una opción</option>
@@ -140,16 +152,18 @@ export function GestionCambioDetalle({
           </select>
         </label>
 
-        <label className="block">
-          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">
-            Observaciones <span className="normal-case">(En caso de que el cambio no sea eficaz, definir las causas o fallas que afectaron su implementación)</span>
-          </span>
-          <textarea
-            value={seguimiento.observaciones}
-            onChange={(event) => setSeguimiento((current) => ({ ...current, observaciones: event.target.value }))}
-            className={`${inputClassName} min-h-16`}
-          />
-        </label>
+        {seguimiento.cambioEficaz === "NO" ? (
+          <label className="block">
+            <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">
+              Observaciones <span className="normal-case">(Definir las causas o fallas que afectaron su implementación)</span>
+            </span>
+            <textarea
+              value={seguimiento.observaciones}
+              onChange={(event) => setSeguimiento((current) => ({ ...current, observaciones: event.target.value }))}
+              className={`${inputClassName} min-h-16`}
+            />
+          </label>
+        ) : null}
 
         <label className="block">
           <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">

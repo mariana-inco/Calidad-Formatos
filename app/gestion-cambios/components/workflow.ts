@@ -53,3 +53,21 @@ export function filterRegistrosForApproval(registros: GestionCambio[], usuario?:
     return true;
   });
 }
+
+export function filterRegistrosForApprovalHistory(registros: GestionCambio[], usuario?: UsuarioGestionCambio) {
+  if (!usuario || !canAccessApproval(usuario)) return [];
+
+  return registros.filter((registro) => {
+    if (registro.empresa !== usuario.empresa) return false;
+
+    if (usuario.rol === "GESTION_CALIDAD") {
+      return registro.historial.some((decision) => decision.accion === "VALIDAR_REMITIR" && decision.usuario === usuario.nombre);
+    }
+
+    if (usuario.rol === "GERENCIA_ADMINISTRATIVA") {
+      return registro.historial.some((decision) => decision.accion === "REGISTRAR_FIRMA" && decision.usuario === usuario.nombre);
+    }
+
+    return registro.historial.some((decision) => decision.accion === "REENVIAR_CALIDAD" && decision.usuario === usuario.nombre);
+  });
+}

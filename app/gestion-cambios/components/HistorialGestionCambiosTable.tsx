@@ -8,15 +8,27 @@ type HistorialGestionCambiosTableProps = {
   registros: GestionCambio[];
   emptyTitle?: string;
   emptyDescription?: string;
+  getEstadoBadge?: (registro: GestionCambio) => { label: string; className: string };
   canEdit?: (registro: GestionCambio) => boolean;
   onView: (registro: GestionCambio) => void;
   onEdit?: (registro: GestionCambio) => void;
 };
 
-function EstadoBadge({ registro }: { registro: GestionCambio }) {
+function EstadoBadge({
+  registro,
+  getEstadoBadge,
+}: {
+  registro: GestionCambio;
+  getEstadoBadge?: (registro: GestionCambio) => { label: string; className: string };
+}) {
+  const estadoBadge = getEstadoBadge?.(registro) ?? {
+    label: estadoLabels[registro.estado],
+    className: estadoBadgeClassName[registro.estado],
+  };
+
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[registro.estado]}`}>
-      {estadoLabels[registro.estado]}
+    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadge.className}`}>
+      {estadoBadge.label}
     </span>
   );
 }
@@ -48,6 +60,7 @@ export function HistorialGestionCambiosTable({
   registros,
   emptyTitle = "No hay gestiones de cambio registradas",
   emptyDescription = "Cuando diligencies y guardes una solicitud, aparecerá aquí.",
+  getEstadoBadge,
   canEdit,
   onView,
   onEdit,
@@ -90,7 +103,7 @@ export function HistorialGestionCambiosTable({
                   <td className="px-5 py-5 font-black uppercase text-slate-950">{registro.liderProceso}</td>
                   <td className="px-5 py-5">{registro.proceso}</td>
                   <td className="max-w-xs px-5 py-5 leading-6">{registro.tipoCambio}</td>
-                  <td className="px-5 py-4"><EstadoBadge registro={registro} /></td>
+                  <td className="px-5 py-4"><EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} /></td>
                   <td className="px-5 py-5 font-semibold">{roleLabels[registro.responsableActual]}</td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-center gap-2">
@@ -116,7 +129,7 @@ export function HistorialGestionCambiosTable({
                   <p className="text-xs font-black uppercase tracking-wide text-slate-500">{registro.codigo}</p>
                   <h3 className="mt-1 text-base font-bold text-slate-950">{registro.liderProceso}</h3>
                 </div>
-                <EstadoBadge registro={registro} />
+                <EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} />
               </div>
               <div className="mt-4 grid gap-2 text-sm text-slate-700">
                 <p><span className="font-bold text-slate-950">Fecha:</span> {registro.fecha}</p>

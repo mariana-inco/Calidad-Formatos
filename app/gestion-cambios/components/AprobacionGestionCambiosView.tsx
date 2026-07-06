@@ -3,7 +3,7 @@
 import { ClipboardCheck, ShieldAlert } from "lucide-react";
 import type { GestionCambio, UsuarioGestionCambio } from "./types";
 import { HistorialGestionCambiosTable } from "./HistorialGestionCambiosTable";
-import { canAccessApproval, canEditCorrection, filterRegistrosForApproval, roleLabels } from "./workflow";
+import { canAccessApproval, canEditCorrection, filterRegistrosForApproval, filterRegistrosForApprovalHistory, roleLabels } from "./workflow";
 
 type AprobacionGestionCambiosViewProps = {
   registros: GestionCambio[];
@@ -30,6 +30,20 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
   }
 
   const registrosAprobacion = filterRegistrosForApproval(registros, usuarioActual);
+  const registrosHistorial = filterRegistrosForApprovalHistory(registros, usuarioActual).filter(
+    (registro) => !registrosAprobacion.some((pendiente) => pendiente.id === registro.id),
+  );
+  const historialEstadoBadge = () => {
+    if (usuarioActual?.rol === "GESTION_CALIDAD") {
+      return { label: "Aprobado", className: "border-emerald-200 bg-emerald-50 text-emerald-800" };
+    }
+
+    if (usuarioActual?.rol === "GERENCIA_ADMINISTRATIVA") {
+      return { label: "Firmado", className: "border-blue-200 bg-blue-50 text-blue-800" };
+    }
+
+    return { label: "Corregido", className: "border-purple-200 bg-purple-50 text-purple-800" };
+  };
 
   return (
     <div className="space-y-7">
@@ -47,14 +61,34 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
         </div>
       </section>
 
-      <HistorialGestionCambiosTable
-        registros={registrosAprobacion}
-        emptyTitle="No hay registros pendientes para este rol"
-        emptyDescription="Cuando el flujo asigne registros a este responsable, aparecerán aquí."
-        canEdit={(registro) => canEditCorrection(registro, usuarioActual)}
-        onView={onView}
-        onEdit={onEdit}
-      />
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-black uppercase text-slate-950">Pendientes de aprobación</h2>
+          <p className="mt-1 text-sm text-slate-600">Registros asignados actualmente a {usuarioActual ? roleLabels[usuarioActual.rol] : "este rol"}.</p>
+        </div>
+        <HistorialGestionCambiosTable
+          registros={registrosAprobacion}
+          emptyTitle="No hay registros pendientes para este rol"
+          emptyDescription="Cuando el flujo asigne registros a este responsable, aparecerán aquí."
+          canEdit={(registro) => canEditCorrection(registro, usuarioActual)}
+          onView={onView}
+          onEdit={onEdit}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-black uppercase text-slate-950">Historial de aprobación</h2>
+          <p className="mt-1 text-sm text-slate-600">Registros ya gestionados por el usuario activo en esta etapa.</p>
+        </div>
+        <HistorialGestionCambiosTable
+          registros={registrosHistorial}
+          emptyTitle="No hay registros aprobados en el historial"
+          emptyDescription="Cuando apruebes o gestiones un registro, quedará visible aquí."
+          getEstadoBadge={historialEstadoBadge}
+          onView={onView}
+        />
+      </section>
     </div>
   );
 }

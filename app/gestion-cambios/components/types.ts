@@ -1,20 +1,20 @@
 export type GestionCambioEstado =
-  | "Borrador"
-  | "En revisión"
-  | "Requiere corrección"
-  | "Pendiente firma"
-  | "En seguimiento"
-  | "Cerrado"
-  | "Aprobado"
-  | "Rechazado";
+  | "EN_REVISION"
+  | "REQUIERE_CORRECCION"
+  | "PENDIENTE_FIRMA"
+  | "EN_SEGUIMIENTO"
+  | "CERRADO";
 
-export type GestionCambioAprobacion = "Pendiente" | "Devuelta" | "Validada" | "Firmada" | "Cerrada" | "Aprobada" | "Rechazada";
+export type GestionCambioRol = "GESTION_CALIDAD" | "GERENCIA_ADMINISTRATIVA" | "LIDER_PROCESO";
 
-export type GestionCambioWorkflowAction = "solicitar-correccion" | "validar-remitir" | "registrar-firma" | "cerrar-formato";
+export type GestionCambioWorkflowAction =
+  | "SOLICITAR_CORRECCION"
+  | "REENVIAR_CALIDAD"
+  | "VALIDAR_REMITIR"
+  | "REGISTRAR_FIRMA"
+  | "CERRAR_FORMATO";
 
 export type GestionCambioEmpresa = "Incominería" | "Dromos";
-
-export type GestionCambioRol = "Calidad" | "Gerencia Administrativa" | "Líder de proceso";
 
 export type UsuarioGestionCambio = {
   id: string;
@@ -42,6 +42,22 @@ export type SolicitudCambioData = {
   plan: PlanActividad[];
 };
 
+export type SeguimientoCambioData = {
+  cambioEficaz: "SI" | "NO" | "";
+  observaciones: string;
+  acciones: string;
+  nombreCierre: string;
+  cargoCierre: string;
+  fechaCierre: string;
+};
+
+export type GestionCambioDecision = {
+  accion: GestionCambioWorkflowAction;
+  fecha: string;
+  usuario: string;
+  observaciones?: string;
+};
+
 export type GestionCambio = {
   id: string;
   codigo: string;
@@ -49,9 +65,18 @@ export type GestionCambio = {
   empresa: GestionCambioEmpresa;
   liderProceso: string;
   proceso: string;
-  aprobador: string;
   tipoCambio: string;
   estado: GestionCambioEstado;
-  aprobacion?: GestionCambioAprobacion;
+  responsableActual: GestionCambioRol;
+  creadorId: string;
+  liderProcesoId?: string;
+  validacionCalidad?: string;
+  observacionesCorreccion?: string;
+  firmaGerencia?: {
+    nombre: string;
+    fecha: string;
+  };
+  seguimiento?: SeguimientoCambioData;
+  historial: GestionCambioDecision[];
   detalle: SolicitudCambioData;
 };

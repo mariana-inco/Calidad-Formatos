@@ -18,6 +18,7 @@ import type { PlanActividad, SolicitudCambioData } from "./types";
 type SolicitudCambioFormProps = {
   formId?: string;
   empresaActiva: SolicitudCambioData["empresa"];
+  initialData?: SolicitudCambioData;
   onSubmit?: (data: SolicitudCambioData) => void;
 };
 
@@ -38,14 +39,27 @@ const analisisIcons: Record<string, React.ReactNode> = {
   "aspectos-impactos-ambientales": <Leaf className="size-3.5" />,
 };
 
-export function SolicitudCambioForm({ formId, empresaActiva, onSubmit }: SolicitudCambioFormProps) {
+export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubmit }: SolicitudCambioFormProps) {
+  const [solicitudValues, setSolicitudValues] = useState<Record<string, string>>(() => ({
+    "nombre-lider-proceso": initialData?.liderProceso ?? "",
+    proceso: initialData?.proceso ?? "",
+  }));
+  const [analisisValues, setAnalisisValues] = useState<Record<string, string>>(() => ({ ...(initialData?.analisis ?? {}) }));
   const [tipoCambioSeleccionado, setTipoCambioSeleccionado] = useState("");
   const [cualTipoCambio, setCualTipoCambio] = useState("");
-  const [tiposCambio, setTiposCambio] = useState<string[]>([]);
+  const [tiposCambio, setTiposCambio] = useState<string[]>(() => initialData?.tiposCambio ?? []);
   const [planForm, setPlanForm] = useState(emptyPlanForm);
-  const [planRows, setPlanRows] = useState<PlanActividad[]>([]);
+  const [planRows, setPlanRows] = useState<PlanActividad[]>(() => initialData?.plan ?? []);
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
   const isTipoCambioOtros = tipoCambioSeleccionado === "OTROS";
+
+  const updateSolicitudValue = (fieldId: string, value: string) => {
+    setSolicitudValues((current) => ({ ...current, [fieldId]: value }));
+  };
+
+  const updateAnalisisValue = (fieldId: string, value: string) => {
+    setAnalisisValues((current) => ({ ...current, [fieldId]: value }));
+  };
 
   const agregarTipoCambio = () => {
     if (!tipoCambioSeleccionado) return;
@@ -116,16 +130,14 @@ export function SolicitudCambioForm({ formId, empresaActiva, onSubmit }: Solicit
   const submitSolicitud = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
     const pendingTipoCambio = getPendingTipoCambio();
     const finalTiposCambio = pendingTipoCambio && !tiposCambio.includes(pendingTipoCambio) ? [...tiposCambio, pendingTipoCambio] : tiposCambio;
-
-    const analisis = Object.fromEntries(analisisFields.map((field) => [field.id, String(formData.get(field.id) ?? "")]));
+    const analisis = Object.fromEntries(analisisFields.map((field) => [field.id, analisisValues[field.id] ?? ""]));
 
     onSubmit?.({
       empresa: empresaActiva,
-      liderProceso: String(formData.get("nombre-lider-proceso") ?? ""),
-      proceso: String(formData.get("proceso") ?? ""),
+      liderProceso: solicitudValues["nombre-lider-proceso"] ?? "",
+      proceso: solicitudValues.proceso ?? "",
       tiposCambio: finalTiposCambio,
       analisis,
       plan: planRows,
@@ -145,6 +157,8 @@ export function SolicitudCambioForm({ formId, empresaActiva, onSubmit }: Solicit
                   type={field.type}
                   placeholder={field.placeholder}
                   options={field.id === "proceso" ? procesoOptions : undefined}
+                  value={solicitudValues[field.id] ?? ""}
+                  onChange={(value) => updateSolicitudValue(field.id, value)}
                 />
               ))}
 
@@ -223,6 +237,8 @@ export function SolicitudCambioForm({ formId, empresaActiva, onSubmit }: Solicit
                 type={field.type}
                 placeholder={field.placeholder}
                 icon={analisisIcons[field.id]}
+                value={analisisValues[field.id] ?? ""}
+                onChange={(value) => updateAnalisisValue(field.id, value)}
               />
             ))}
           </div>

@@ -1,21 +1,21 @@
 "use client";
 
-import { Eye, Plus, Settings, Trash2, UserRound } from "lucide-react";
+import { Plus, Settings, Trash2, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { GestionCambioEmpresa, GestionCambioRol, UsuarioGestionCambio } from "./types";
-import { roleLabels } from "./workflow";
+import type { ReporteAccionesRol, UsuarioReporteAcciones } from "./types";
 
-type ConfiguracionRolesViewProps = {
-  usuarios: UsuarioGestionCambio[];
-  empresaActiva: GestionCambioEmpresa;
+type ConfiguracionReporteAccionesViewProps = {
+  usuarios: UsuarioReporteAcciones[];
+  empresaActiva: string;
+  codigoFormato: string;
   usuarioActualId: string;
   onUsuarioActualChange: (usuarioId: string) => void;
-  onAddUsuario: (usuario: UsuarioGestionCambio) => void;
+  onAddUsuario: (usuario: UsuarioReporteAcciones) => void;
   onDeleteUsuario: (usuarioId: string) => void;
 };
 
 type RoleConfig = {
-  rol: GestionCambioRol;
+  rol: ReporteAccionesRol;
   title: string;
   description: string;
   badgeClassName: string;
@@ -29,22 +29,16 @@ type UsuarioDraft = {
 
 const roleConfigs: RoleConfig[] = [
   {
-    rol: "GESTION_CALIDAD",
+    rol: "Calidad",
     title: "Gestión de Calidad",
-    description: "Valida si el cambio está correctamente documentado, hace seguimiento y cierra el formato.",
+    description: "Revisa el reporte, solicita correcciones, aprueba, define seguimiento y valida el cierre.",
     badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-800",
   },
   {
-    rol: "GERENCIA_ADMINISTRATIVA",
-    title: "Gerencia Administrativa",
-    description: "Recibe las gestiones validadas por Calidad y registra la firma correspondiente.",
-    badgeClassName: "border-blue-200 bg-blue-50 text-blue-800",
-  },
-  {
-    rol: "LIDER_PROCESO",
+    rol: "Líder de proceso",
     title: "Líder de proceso",
-    description: "Diligencia la solicitud y corrige el formato cuando Calidad devuelve observaciones.",
-    badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
+    description: "Identifica el hallazgo, diligencia el análisis, define acciones y cierra con evidencias cuando Calidad remite.",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-800",
   },
 ];
 
@@ -54,7 +48,7 @@ function normalizeText(value: string) {
   return value.trim().toLowerCase();
 }
 
-function UserLine({ usuario, onDelete }: { usuario: UsuarioGestionCambio; onDelete: (usuarioId: string) => void }) {
+function UserLine({ usuario, onDelete }: { usuario: UsuarioReporteAcciones; onDelete: (usuarioId: string) => void }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-4 py-3">
       <div className="min-w-0">
@@ -81,20 +75,21 @@ function UserLine({ usuario, onDelete }: { usuario: UsuarioGestionCambio; onDele
   );
 }
 
-export function ConfiguracionRolesView({
+export function ConfiguracionReporteAccionesView({
   usuarios,
   empresaActiva,
+  codigoFormato,
   usuarioActualId,
   onUsuarioActualChange,
   onAddUsuario,
   onDeleteUsuario,
-}: ConfiguracionRolesViewProps) {
-  const [editingRole, setEditingRole] = useState<GestionCambioRol | null>(null);
+}: ConfiguracionReporteAccionesViewProps) {
+  const [editingRole, setEditingRole] = useState<ReporteAccionesRol | null>(null);
   const [draft, setDraft] = useState<UsuarioDraft>(emptyDraft);
 
   const usuariosActivos = useMemo(() => usuarios.filter((usuario) => usuario.activo), [usuarios]);
 
-  const addUsuarioToRole = (rol: GestionCambioRol) => {
+  const addUsuarioToRole = (rol: ReporteAccionesRol) => {
     const nombre = draft.nombre.trim();
     const correo = draft.correo.trim();
     const proceso = draft.proceso.trim();
@@ -118,7 +113,7 @@ export function ConfiguracionRolesView({
     setDraft(emptyDraft);
   };
 
-  const openRoleEditor = (rol: GestionCambioRol) => {
+  const openRoleEditor = (rol: ReporteAccionesRol) => {
     setEditingRole((current) => (current === rol ? null : rol));
     setDraft(emptyDraft);
   };
@@ -131,11 +126,11 @@ export function ConfiguracionRolesView({
           <div>
             <h1 className="text-lg font-black text-slate-950">Configuración de Roles</h1>
             <p className="mt-1 text-sm leading-5 text-slate-600">
-              Asigna usuarios responsables de cada etapa. La empresa se toma desde la empresa activa de Roca.
-              <span className="ml-2 font-bold text-blue-700">SIG-F006</span>
+              Asigna responsables internos del flujo del formato. Los permisos generales de acceso se administran desde ROCA.
+              <span className="ml-2 font-bold text-blue-700">{codigoFormato}</span>
             </p>
             <p className="mt-2 inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-800">
-              Empresa activa: {empresaActiva}
+              Empresa activa: se toma desde el filtro de ROCA
             </p>
           </div>
         </div>
@@ -226,16 +221,13 @@ export function ConfiguracionRolesView({
         })}
 
         <article className="rounded-lg border border-dashed border-blue-200 bg-white p-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-700">
-                <Eye className="size-3.5 text-slate-500" />
-                Vista de prueba
-              </span>
-              <p className="mt-2 text-sm leading-5 text-slate-600">
-                Selecciona un usuario configurado para validar qué registros ve en la pestaña Aprobación.
-              </p>
-            </div>
+          <div className="min-w-0">
+            <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-700">
+              Usuario activo temporal
+            </span>
+            <p className="mt-2 text-sm leading-5 text-slate-600">
+              Selecciona el usuario activo para probar el comportamiento del flujo. En ROCA esto se reemplaza por el usuario autenticado.
+            </p>
           </div>
 
           <select
@@ -243,10 +235,10 @@ export function ConfiguracionRolesView({
             onChange={(event) => onUsuarioActualChange(event.target.value)}
             className="mt-4 h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100"
           >
-            <option value="">Vista temporal de Calidad</option>
+            <option value="">Vista temporal sin usuario asignado</option>
             {usuariosActivos.map((usuario) => (
               <option key={usuario.id} value={usuario.id}>
-                {usuario.nombre} - {usuario.empresa} - {roleLabels[usuario.rol]}
+                {usuario.nombre} - {usuario.empresa} - {usuario.rol}
               </option>
             ))}
           </select>

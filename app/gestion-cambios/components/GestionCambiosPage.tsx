@@ -4,31 +4,58 @@ import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AprobacionGestionCambiosView } from "./AprobacionGestionCambiosView";
 import { ConfiguracionRolesView } from "./ConfiguracionRolesView";
-import { GestionCambioDetalle } from "./GestionCambioDetalle";
+import { GestionCambioDetalle, type WorkflowPayload } from "./GestionCambioDetalle";
 import { GestionCambioModal } from "./GestionCambioModal";
 import { SolicitudCambioForm } from "./GestionCambiosForm";
 import { GestionCambiosTabs, type GestionCambiosTab } from "./GestionCambiosTabs";
 import { HistorialGestionCambiosTable } from "./HistorialGestionCambiosTable";
+import { registrosMock, usuariosMock } from "./mockData";
 import type { GestionCambio, GestionCambioEmpresa, GestionCambioWorkflowAction, SolicitudCambioData, UsuarioGestionCambio } from "./types";
+import { canAccessApproval, filterRegistrosForCreation, roleLabels } from "./workflow";
 
 const FORM_ID = "solicitud-cambio-form";
-const registrosIniciales: GestionCambio[] = [];
-const usuariosIniciales: UsuarioGestionCambio[] = [];
 const empresaActiva: GestionCambioEmpresa = "Incominería";
 
 type ModalMode = "create" | "view" | "edit";
 
-function getAprobadorDesdeUsuario(usuario?: UsuarioGestionCambio) {
-  if (!usuario) return "Gestión de Calidad";
-  if (usuario.rol === "Calidad") return "Gestión de Calidad";
-  if (usuario.rol === "Gerencia Administrativa") return "Gerencia Administrativa";
-  return usuario.proceso || usuario.nombre;
+function getNextCodigo(registros: GestionCambio[]) {
+  const nextNumber = registros.reduce((max, registro) => {
+    const match = registro.codigo.match(/GC-2026-(\d+)$/);
+    return Math.max(max, match ? Number(match[1]) : 0);
+  }, 0) + 1;
+
+  return `GC-2026-${String(nextNumber).padStart(3, "0")}`;
+}
+
+function buildRegistro(data: SolicitudCambioData, usuarioActual: UsuarioGestionCambio, registros: GestionCambio[]): GestionCambio {
+  return {
+    id: crypto.randomUUID(),
+    codigo: getNextCodigo(registros),
+    fecha: new Date().toISOString().slice(0, 10),
+    empresa: data.empresa,
+    liderProceso: data.liderProceso || usuarioActual.nombre,
+    proceso: data.proceso || usuarioActual.proceso || "Sin diligenciar",
+    tipoCambio: data.tiposCambio.length > 0 ? data.tiposCambio.join(", ") : "Sin diligenciar",
+    estado: "EN_REVISION",
+    responsableActual: "GESTION_CALIDAD",
+    creadorId: usuarioActual.id,
+    liderProcesoId: usuarioActual.rol === "LIDER_PROCESO" ? usuarioActual.id : undefined,
+    historial: [
+      {
+        accion: "REENVIAR_CALIDAD",
+        fecha: new Date().toISOString(),
+        usuario: usuarioActual.nombre,
+        observaciones: "Registro creado y enviado a revisión de Calidad.",
+      },
+    ],
+    detalle: data,
+  };
 }
 
 export function GestionCambiosPage() {
-  const [registros, setRegistros] = useState<GestionCambio[]>(registrosIniciales);
-  const [usuarios, setUsuarios] = useState<UsuarioGestionCambio[]>(usuariosIniciales);
-  const [usuarioActualId, setUsuarioActualId] = useState("");
+  const [registros, setRegistros] = useState<GestionCambio[]>(registrosMock);
+  const [usuarios, setUsuarios] = useState<UsuarioGestionCambio[]>(usuariosMock);
+  const [usuarioActualId, setUsuarioActualId] = useState(usuariosMock[0]?.id ?? "");
   const [activeTab, setActiveTab] = useState<GestionCambiosTab>("creacion");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("create");
@@ -38,13 +65,9 @@ export function GestionCambiosPage() {
     () => usuarios.find((usuario) => usuario.id === usuarioActualId && usuario.activo),
     [usuarioActualId, usuarios],
   );
-  const aprobadorActual = useMemo(() => getAprobadorDesdeUsuario(usuarioActual), [usuarioActual]);
 
-  const modalTitle = useMemo(() => {
-    if (modalMode === "view") return "Detalle de Gestión de Cambio";
-    if (modalMode === "edit") return "Editar Gestión de Cambio";
-    return "Crear Gestión de Cambio";
-  }, [modalMode]);
+  const registrosCreacion = useMemo(() => filterRegistrosForCreation(registros, usuarioActual), [registros, usuarioActual]);
+  const canShowApproval = canAccessApproval(usuarioActual);
 
   const openCreateModal = () => {
     setSelectedRegistro(null);
@@ -70,31 +93,27 @@ export function GestionCambiosPage() {
   };
 
   const saveSolicitud = (data: SolicitudCambioData) => {
-    if (modalMode === "create") {
-      const nextNumber = String(registros.length + 1).padStart(3, "0");
-      setRegistros((items) => [
-        {
-          id: crypto.randomUUID(),
-          codigo: `GC-2026-${nextNumber}`,
-          fecha: new Date().toISOString().slice(0, 10),
-          empresa: data.empresa,
-          liderProceso: data.liderProceso || "Sin diligenciar",
-          proceso: data.proceso || "Sin diligenciar",
-          aprobador: "Gestión de Calidad",
-          tipoCambio: data.tiposCambio.length > 0 ? data.tiposCambio.join(", ") : "Sin diligenciar",
-          estado: "En revisión",
-          aprobacion: "Pendiente",
-          detalle: data,
-        },
-        ...items,
-      ]);
+    if (!usuarioActual) return;
+
+    if (modalMode === "edit" && selectedRegistro) {
+      const updated: GestionCambio = {
+        ...selectedRegistro,
+        liderProceso: data.liderProceso || selectedRegistro.liderProceso,
+        proceso: data.proceso || selectedRegistro.proceso,
+        tipoCambio: data.tiposCambio.length > 0 ? data.tiposCambio.join(", ") : selectedRegistro.tipoCambio,
+        detalle: data,
+      };
+
+      setRegistros((items) => items.map((item) => (item.id === selectedRegistro.id ? updated : item)));
+      setSelectedRegistro(updated);
+      closeModal();
+      return;
     }
 
+    const registroJson = buildRegistro(data, usuarioActual, registros);
+    console.log("Mock Gestión de Cambio SIG-F006", [registroJson]);
+    setRegistros((items) => [registroJson, ...items]);
     closeModal();
-  };
-
-  const deleteRegistro = (registroId: string) => {
-    setRegistros((items) => items.filter((item) => item.id !== registroId));
   };
 
   const addUsuario = (usuario: UsuarioGestionCambio) => {
@@ -104,46 +123,88 @@ export function GestionCambiosPage() {
 
   const deleteUsuario = (usuarioId: string) => {
     if (usuarioActualId === usuarioId) {
-      setUsuarioActualId("");
+      setUsuarioActualId(usuarios.find((usuario) => usuario.id !== usuarioId && usuario.activo)?.id ?? "");
     }
 
     setUsuarios((items) => items.filter((item) => item.id !== usuarioId));
   };
 
-  const actualizarFlujoAprobacion = (registro: GestionCambio, action: GestionCambioWorkflowAction) => {
-    const workflowUpdates: Record<GestionCambioWorkflowAction, Pick<GestionCambio, "estado" | "aprobacion" | "aprobador">> = {
-      "solicitar-correccion": {
-        estado: "Requiere corrección",
-        aprobacion: "Devuelta",
-        aprobador: registro.proceso || "Líder de proceso",
-      },
-      "validar-remitir": {
-        estado: "Pendiente firma",
-        aprobacion: "Validada",
-        aprobador: "Gerencia Administrativa",
-      },
-      "registrar-firma": {
-        estado: "En seguimiento",
-        aprobacion: "Firmada",
-        aprobador: "Gestión de Calidad",
-      },
-      "cerrar-formato": {
-        estado: "Cerrado",
-        aprobacion: "Cerrada",
-        aprobador: "Gestión de Calidad",
-      },
-    };
+  const actualizarFlujoAprobacion = (registro: GestionCambio, action: GestionCambioWorkflowAction, payload?: WorkflowPayload) => {
+    const now = new Date().toISOString();
+    const usuario = usuarioActual?.nombre ?? "Usuario mock";
 
-    const updatedFields = workflowUpdates[action];
+    setRegistros((items) =>
+      items.map((item) => {
+        if (item.id !== registro.id) return item;
 
-    setRegistros((items) => items.map((item) => (item.id === registro.id ? { ...item, ...updatedFields } : item)));
-    setSelectedRegistro((selected) => (selected?.id === registro.id ? { ...selected, ...updatedFields } : selected));
+        const historialEntry = { accion: action, fecha: now, usuario, observaciones: payload?.observacionesCorreccion ?? payload?.validacionCalidad };
+
+        if (action === "SOLICITAR_CORRECCION") {
+          return {
+            ...item,
+            estado: "REQUIERE_CORRECCION",
+            responsableActual: "LIDER_PROCESO",
+            observacionesCorreccion: payload?.observacionesCorreccion,
+            historial: [...item.historial, historialEntry],
+          };
+        }
+
+        if (action === "REENVIAR_CALIDAD") {
+          return {
+            ...item,
+            estado: "EN_REVISION",
+            responsableActual: "GESTION_CALIDAD",
+            historial: [...item.historial, historialEntry],
+          };
+        }
+
+        if (action === "VALIDAR_REMITIR") {
+          return {
+            ...item,
+            estado: "PENDIENTE_FIRMA",
+            responsableActual: "GERENCIA_ADMINISTRATIVA",
+            validacionCalidad: payload?.validacionCalidad,
+            seguimiento: payload?.seguimiento,
+            historial: [...item.historial, historialEntry],
+          };
+        }
+
+        if (action === "REGISTRAR_FIRMA") {
+          return {
+            ...item,
+            estado: "EN_SEGUIMIENTO",
+            responsableActual: "GESTION_CALIDAD",
+            firmaGerencia: {
+              nombre: payload?.firmaGerencia ?? usuario,
+              fecha: new Date().toISOString().slice(0, 10),
+            },
+            historial: [...item.historial, historialEntry],
+          };
+        }
+
+        return {
+          ...item,
+          estado: "CERRADO",
+          seguimiento: payload?.seguimiento,
+          historial: [...item.historial, historialEntry],
+        };
+      }),
+    );
+
+    setSelectedRegistro((current) => {
+      if (!current || current.id !== registro.id) return current;
+      const refreshed = registros.find((item) => item.id === registro.id) ?? current;
+      return { ...refreshed };
+    });
+    closeModal();
   };
+
+  const modalTitle = modalMode === "create" ? "Crear Gestión de Cambio" : modalMode === "edit" ? "Editar Gestión de Cambio" : "Detalle de Gestión de Cambio";
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 font-sans text-slate-950 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-7xl space-y-7">
-        <GestionCambiosTabs activeTab={activeTab} onChange={setActiveTab} />
+        <GestionCambiosTabs activeTab={activeTab} onChange={setActiveTab} showApproval={canShowApproval} />
 
         {activeTab === "creacion" ? (
           <>
@@ -151,20 +212,21 @@ export function GestionCambiosPage() {
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h1 className="text-2xl font-black uppercase text-slate-950 sm:text-3xl">Gestión de Cambios</h1>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Usuario activo: <span className="font-bold text-slate-950">{usuarioActual?.nombre ?? "Sin usuario"}</span>
+                    {usuarioActual ? ` - ${roleLabels[usuarioActual.rol]}` : ""}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black uppercase text-emerald-800">
-                      Código: SIG-F006
-                    </span>
-                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-black uppercase text-slate-700">
-                      Versión: 04
-                    </span>
+                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black uppercase text-emerald-800">Código: SIG-F006</span>
+                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-black uppercase text-slate-700">Mock data</span>
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={openCreateModal}
-                  className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:w-fit"
+                  disabled={!usuarioActual}
+                  className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-fit"
                 >
                   <Plus className="size-5" />
                   Crear Gestión de Cambio
@@ -172,10 +234,15 @@ export function GestionCambiosPage() {
               </div>
             </header>
 
-            <HistorialGestionCambiosTable registros={registros} onView={openViewModal} onEdit={openEditModal} onDelete={deleteRegistro} />
+            <HistorialGestionCambiosTable
+              registros={registrosCreacion}
+              emptyTitle="No tienes gestiones de cambio creadas"
+              emptyDescription="En esta pestaña solo ves los registros creados por el usuario activo."
+              onView={openViewModal}
+            />
           </>
         ) : activeTab === "aprobacion" ? (
-          <AprobacionGestionCambiosView registros={registros} aprobadorActual={aprobadorActual} usuarioActual={usuarioActual} onView={openViewModal} />
+          <AprobacionGestionCambiosView registros={registros} usuarioActual={usuarioActual} onView={openViewModal} onEdit={openEditModal} />
         ) : (
           <ConfiguracionRolesView
             usuarios={usuarios}
@@ -192,17 +259,24 @@ export function GestionCambiosPage() {
         isOpen={isModalOpen}
         title={selectedRegistro ? `${modalTitle} - ${selectedRegistro.codigo}` : modalTitle}
         onClose={closeModal}
-        formId={modalMode === "view" ? undefined : FORM_ID}
-        showSaveButton={modalMode !== "view"}
+        formId={modalMode === "create" || modalMode === "edit" ? FORM_ID : undefined}
+        showSaveButton={modalMode === "create" || modalMode === "edit"}
       >
         {modalMode === "view" && selectedRegistro ? (
           <GestionCambioDetalle
             registro={selectedRegistro}
             showApprovalActions={activeTab === "aprobacion"}
-            onWorkflowAction={(action) => actualizarFlujoAprobacion(selectedRegistro, action)}
+            usuarioActual={usuarioActual}
+            onEdit={() => openEditModal(selectedRegistro)}
+            onWorkflowAction={(action, payload) => actualizarFlujoAprobacion(selectedRegistro, action, payload)}
           />
         ) : (
-          <SolicitudCambioForm formId={FORM_ID} empresaActiva={empresaActiva} onSubmit={saveSolicitud} />
+          <SolicitudCambioForm
+            formId={FORM_ID}
+            empresaActiva={empresaActiva}
+            initialData={modalMode === "edit" ? selectedRegistro?.detalle : undefined}
+            onSubmit={saveSolicitud}
+          />
         )}
       </GestionCambioModal>
     </main>

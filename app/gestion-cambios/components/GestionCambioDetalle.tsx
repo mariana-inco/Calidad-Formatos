@@ -4,7 +4,17 @@ import { CalendarDays, FilePenLine, PlusCircle, UserCheck, Workflow } from "luci
 import { useState } from "react";
 import { analisisFields } from "./formData";
 import type { AprobacionCambioData, GestionCambio, GestionCambioWorkflowAction, SeguimientoCambioData, UsuarioGestionCambio } from "./types";
-import { canEditCorrection, estadoBadgeClassName, estadoLabels, getDiasRestantes, getEffectiveEstado, getEstadoCierre, roleLabels } from "./workflow";
+import {
+  canEditCorrection,
+  estadoBadgeClassName,
+  estadoLabels,
+  getDiasRestantes,
+  getEffectiveEstado,
+  getEstadoCierre,
+  hasApproverDecision,
+  hasQualityInitialReview,
+  roleLabels,
+} from "./workflow";
 
 export type WorkflowPayload = {
   observacionesCorreccion?: string;
@@ -23,6 +33,25 @@ type GestionCambioDetalleProps = {
 
 const inputClassName =
   "mt-2 w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-100";
+
+const actionLabels: Record<GestionCambioWorkflowAction, string> = {
+  CREAR_REGISTRO: "Líder identifica el cambio",
+  COMPLETAR_SOLICITUD: "Diligencia SIG-F006 y define plan",
+  REENVIAR_CALIDAD: "Envía a revisión de Calidad",
+  SOLICITAR_CORRECCION: "Calidad devuelve al líder",
+  VALIDAR_REMITIR: "Calidad valida y remite a aprobación",
+  REGISTRAR_APROBACION: "Responsable aprueba el cambio",
+  REGISTRAR_RECHAZO: "Responsable rechaza el cambio",
+  CERRAR_FORMATO: "Calidad cierra el formato",
+};
+
+function formatTimelineDate(value: string) {
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+    timeZone: "America/Bogota",
+  }).format(new Date(value));
+}
 
 function DetailItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -61,7 +90,7 @@ export function GestionCambioDetalle({
   onEdit,
   onWorkflowAction,
 }: GestionCambioDetalleProps) {
-  const [revisionCalidad, setRevisionCalidad] = useState(registro.validacionCalidad ?? "");
+  const [calidadAprueba, setCalidadAprueba] = useState<"SI" | "NO">("SI");
   const [observacionesCorreccion, setObservacionesCorreccion] = useState(registro.observacionesCorreccion ?? "");
   const [aprobacion, setAprobacion] = useState<AprobacionCambioData>(
     registro.aprobacion ?? {
@@ -87,11 +116,12 @@ export function GestionCambioDetalle({
   const [seguimientoAgregado, setSeguimientoAgregado] = useState(Boolean(registro.seguimiento));
   const [error, setError] = useState("");
 
-  const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD";
-  const isQualityFollowup = (registro.estado === "APROBADO_APROBADOR" || registro.estado === "EN_SEGUIMIENTO_CALIDAD") && usuarioActual?.rol === "GESTION_CALIDAD";
+  const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD" && !hasQualityInitialReview(registro);
+  const isQualityFollowup = registro.estado === "EN_SEGUIMIENTO_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD";
   const isApproverTurn =
     registro.estado === "PENDIENTE_APROBACION" &&
     usuarioActual &&
+    !hasApproverDecision(registro, usuarioActual) &&
     (registro.responsableActualId === usuarioActual.id || (!registro.responsableActualId && registro.responsableActual === usuarioActual.rol));
   const canReenterQuality = Boolean(
     usuarioActual &&
@@ -113,10 +143,18 @@ export function GestionCambioDetalle({
     onWorkflowAction?.("SOLICITAR_CORRECCION", { observacionesCorreccion });
   };
 
-  const sendToApprover = () => {
-    if (!requireText(revisionCalidad, "Registra la validación de Calidad antes de remitir.")) return;
+  const saveQualityReview = () => {
+    if (calidadAprueba === "NO") {
+      requestLeaderCorrection();
+      return;
+    }
+
     setError("");
-    onWorkflowAction?.("VALIDAR_REMITIR", { validacionCalidad: revisionCalidad });
+    onWorkflowAction?.("VALIDAR_REMITIR", {
+      validacionCalidad: observacionesCorreccion.trim()
+        ? `Calidad aprueba la revisión inicial. Observaciones: ${observacionesCorreccion.trim()}`
+        : "Calidad aprueba la revisión inicial y confirma que el cambio está correctamente documentado.",
+    });
   };
 
   const registerApprovalDecision = () => {
@@ -151,7 +189,7 @@ export function GestionCambioDetalle({
   const closeFormat = () => {
     if (!validateSeguimiento()) return;
     setError("");
-    onWorkflowAction?.(registro.estado === "APROBADO_APROBADOR" ? "INICIAR_SEGUIMIENTO" : "CERRAR_FORMATO", { seguimiento });
+    onWorkflowAction?.("CERRAR_FORMATO", { seguimiento });
   };
 
   const renderRevisionCalidad = () => (
@@ -163,35 +201,45 @@ export function GestionCambioDetalle({
         </p>
       </div>
 
-      <label className="block">
-        <span className="text-xs font-black uppercase tracking-wide text-slate-600">Validación de Calidad</span>
-        <textarea
-          value={revisionCalidad}
-          onChange={(event) => setRevisionCalidad(event.target.value)}
-          className={`${inputClassName} min-h-20`}
-          placeholder="Describe la revisión realizada y los puntos validados."
-        />
-      </label>
+      <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
+        <div className="border-b border-slate-300 bg-[#e6f0df] px-4 py-2 text-center text-sm font-black uppercase tracking-wide text-slate-950">
+          4. Aprobación del cambio
+        </div>
+        <div className="grid gap-4 border-b border-slate-300 px-4 py-4 md:grid-cols-[1fr_auto_auto] md:items-center">
+          <p className="text-sm font-semibold text-slate-950">¿El cambio solicitado es aprobado?</p>
+          <label className="inline-flex items-center gap-3 text-sm font-semibold uppercase text-slate-950">
+            SI
+            <input
+              type="checkbox"
+              checked={calidadAprueba === "SI"}
+              onChange={() => setCalidadAprueba("SI")}
+              className="size-5 cursor-pointer border-slate-500"
+            />
+          </label>
+          <label className="inline-flex items-center gap-3 text-sm font-semibold uppercase text-slate-950">
+            NO
+            <input
+              type="checkbox"
+              checked={calidadAprueba === "NO"}
+              onChange={() => setCalidadAprueba("NO")}
+              className="size-5 cursor-pointer border-slate-500"
+            />
+          </label>
+        </div>
 
-      <label className="block">
-        <span className="text-xs font-black uppercase tracking-wide text-slate-600">Observaciones para devolución</span>
-        <textarea
-          value={observacionesCorreccion}
-          onChange={(event) => setObservacionesCorreccion(event.target.value)}
-          className={`${inputClassName} min-h-20`}
-          placeholder="Úsalo solo si el registro debe volver al líder de proceso."
-        />
-      </label>
+        <label className="block px-4 py-4">
+          <span className="text-xs font-black uppercase tracking-wide text-slate-600">Observaciones</span>
+          <textarea
+            value={observacionesCorreccion}
+            onChange={(event) => setObservacionesCorreccion(event.target.value)}
+            className={`${inputClassName} min-h-20`}
+            placeholder={calidadAprueba === "SI" ? "Registra observaciones de la revisión inicial." : "Indica qué debe corregir el líder de proceso."}
+          />
+        </label>
+      </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={requestLeaderCorrection}
-          className="inline-flex h-11 items-center justify-center rounded-md border border-orange-200 bg-orange-50 px-5 text-sm font-bold text-orange-800 transition hover:bg-orange-100"
-        >
-          Devolver al líder
-        </button>
-        <PrimaryButton onClick={sendToApprover}>Remitir a aprobador</PrimaryButton>
+      <div className="flex justify-end">
+        <PrimaryButton onClick={saveQualityReview}>{calidadAprueba === "SI" ? "Remitir a aprobador" : "Devolver al líder"}</PrimaryButton>
       </div>
     </div>
   );
@@ -199,41 +247,59 @@ export function GestionCambioDetalle({
   const renderAprobacionCambio = () => (
     <div className="space-y-5">
       <div>
-        <h3 className="text-base font-black text-slate-950">Aprobación del cambio</h3>
+        <h3 className="text-base font-black text-slate-950">4. APROBACIÓN DEL CAMBIO</h3>
         <p className="mt-1 text-sm leading-6 text-slate-600">
           Responsable actual: {registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block">
-          <span className="text-xs font-black uppercase tracking-wide text-slate-600">¿El cambio solicitado es aprobado?</span>
-          <select
-            value={aprobacion.aprobado}
-            onChange={(event) => setAprobacion((current) => ({ ...current, aprobado: event.target.value as AprobacionCambioData["aprobado"] }))}
-            className={inputClassName}
-          >
-            <option value="SI">Sí</option>
-            <option value="NO">No</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-xs font-black uppercase tracking-wide text-slate-600">Nombre</span>
-          <input value={aprobacion.nombre} onChange={(event) => setAprobacion((current) => ({ ...current, nombre: event.target.value }))} className={inputClassName} />
-        </label>
-        <label className="block">
-          <span className="text-xs font-black uppercase tracking-wide text-slate-600">Cargo</span>
-          <input value={aprobacion.cargo} onChange={(event) => setAprobacion((current) => ({ ...current, cargo: event.target.value }))} className={inputClassName} />
-        </label>
-        <label className="block">
-          <span className="text-xs font-black uppercase tracking-wide text-slate-600">Fecha</span>
-          <input type="date" value={aprobacion.fecha} onChange={(event) => setAprobacion((current) => ({ ...current, fecha: event.target.value }))} className={inputClassName} />
-        </label>
+      <div className="overflow-hidden rounded-md border border-slate-300">
+        <div className="grid grid-cols-[1fr_1fr_1fr] border-b border-slate-300 bg-slate-50 text-sm font-black uppercase text-slate-700">
+          <div className="border-r border-slate-300 px-4 py-3">¿El cambio solicitado es aprobado?</div>
+          <div className="border-r border-slate-300 px-4 py-3">NOMBRE</div>
+          <div className="px-4 py-3">CARGO</div>
+        </div>
+        <div className="grid grid-cols-[1fr_1fr_1fr] border-b border-slate-300 bg-white">
+          <div className="border-r border-slate-300 px-4 py-4">
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={aprobacion.aprobado === "SI"}
+                  onChange={(event) => setAprobacion((current) => ({ ...current, aprobado: event.target.checked ? "SI" : "NO" }))}
+                  className="size-4 cursor-pointer"
+                />
+                <span className="text-sm font-semibold">SI</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={aprobacion.aprobado === "NO"}
+                  onChange={(event) => setAprobacion((current) => ({ ...current, aprobado: event.target.checked ? "NO" : "SI" }))}
+                  className="size-4 cursor-pointer"
+                />
+                <span className="text-sm font-semibold">NO</span>
+              </label>
+            </div>
+          </div>
+          <div className="border-r border-slate-300 px-4 py-4">
+            <input value={aprobacion.nombre} onChange={(event) => setAprobacion((current) => ({ ...current, nombre: event.target.value }))} className="h-10 w-full border border-slate-300 px-2 py-1 text-sm font-semibold text-slate-950 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+          </div>
+          <div className="px-4 py-4">
+            <input value={aprobacion.cargo} onChange={(event) => setAprobacion((current) => ({ ...current, cargo: event.target.value }))} className="h-10 w-full border border-slate-300 px-2 py-1 text-sm font-semibold text-slate-950 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+          </div>
+        </div>
+        <div className="border-t border-slate-300 bg-slate-50 px-4 py-3 text-right text-sm font-black uppercase text-slate-700">
+          FECHA (dd/mm/aaaa)
+        </div>
+        <div className="bg-white px-4 py-4">
+          <input type="date" value={aprobacion.fecha} onChange={(event) => setAprobacion((current) => ({ ...current, fecha: event.target.value }))} className="h-10 w-32 border border-slate-300 px-2 py-1 text-sm font-semibold text-slate-950 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+        </div>
       </div>
 
       <label className="block">
         <span className="text-xs font-black uppercase tracking-wide text-slate-600">Observaciones de aprobación</span>
-        <textarea value={aprobacion.observaciones} onChange={(event) => setAprobacion((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-20`} />
+        <textarea value={aprobacion.observaciones} onChange={(event) => setAprobacion((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-20`} placeholder="Registra las observaciones de la aprobación o rechazo." />
       </label>
 
       <div className="flex justify-end">
@@ -329,7 +395,7 @@ export function GestionCambioDetalle({
       </div>
 
       <div className="flex justify-end">
-        <PrimaryButton onClick={closeFormat}>{registro.estado === "APROBADO_APROBADOR" ? "Iniciar seguimiento" : "Cerrar formato"}</PrimaryButton>
+        <PrimaryButton onClick={closeFormat}>Cerrar formato</PrimaryButton>
       </div>
     </div>
   );
@@ -422,16 +488,30 @@ export function GestionCambioDetalle({
         <h3 className="text-base font-black text-slate-950">Línea de tiempo del registro</h3>
         <div className="mt-4 space-y-3">
           {registro.historial.length > 0 ? (
-            registro.historial.map((evento) => (
+            [...registro.historial].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()).map((evento, index) => (
               <div key={`${evento.fecha}-${evento.accion}`} className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-sm font-black text-slate-950">
-                  {evento.usuario} {evento.rol ? `- ${roleLabels[evento.rol]}` : ""}
-                </p>
-                <p className="mt-1 text-xs font-semibold uppercase text-slate-500">{new Date(evento.fecha).toLocaleString("es-CO")}</p>
-                <p className="mt-2 text-sm text-slate-700">
-                  {evento.estadoAnterior ? `${estadoLabels[evento.estadoAnterior]} -> ` : ""}
-                  {evento.estadoNuevo ? estadoLabels[evento.estadoNuevo] : evento.accion}
-                </p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-slate-950">{index + 1}. {actionLabels[evento.accion]}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">
+                      {evento.usuario} {evento.rol ? `- ${roleLabels[evento.rol]}` : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-xs font-black uppercase text-slate-500">{formatTimelineDate(evento.fecha)}</p>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                  {evento.estadoAnterior ? (
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[evento.estadoAnterior]}`}>
+                      {estadoLabels[evento.estadoAnterior]}
+                    </span>
+                  ) : null}
+                  {evento.estadoAnterior && evento.estadoNuevo ? <span className="font-black text-slate-400">→</span> : null}
+                  {evento.estadoNuevo ? (
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[evento.estadoNuevo]}`}>
+                      {estadoLabels[evento.estadoNuevo]}
+                    </span>
+                  ) : null}
+                </div>
                 {evento.observaciones ? <p className="mt-1 text-sm leading-6 text-slate-600">{evento.observaciones}</p> : null}
               </div>
             ))

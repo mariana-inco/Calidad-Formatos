@@ -30,7 +30,9 @@ function getNextCodigo(registros: GestionCambio[]) {
 function buildRegistro(data: SolicitudCambioData, usuarioActual: UsuarioGestionCambio, registros: GestionCambio[], usuarios: UsuarioGestionCambio[]): GestionCambio {
   const calidad = usuarios.find((usuario) => usuario.empresa === data.empresa && usuario.rol === "GESTION_CALIDAD" && usuario.activo);
   const aprobador = usuarios.find((usuario) => usuario.id === data.aprobadorSeleccionadoId && usuario.activo);
-  const fecha = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const completedAt = new Date(now.getTime() + 1000);
+  const fecha = now.toISOString().slice(0, 10);
 
   return {
     id: crypto.randomUUID(),
@@ -41,7 +43,7 @@ function buildRegistro(data: SolicitudCambioData, usuarioActual: UsuarioGestionC
     liderProcesoId: data.liderProcesoId ?? (usuarioActual.rol === "LIDER_PROCESO" ? usuarioActual.id : undefined),
     proceso: data.proceso || usuarioActual.proceso || "Sin diligenciar",
     tipoCambio: data.tiposCambio.length > 0 ? data.tiposCambio.join(", ") : "Sin diligenciar",
-    estado: "BORRADOR",
+    estado: "CREADO",
     responsableActual: usuarioActual.rol === "LIDER_PROCESO" ? "LIDER_PROCESO" : "GESTION_CALIDAD",
     responsableActualId: usuarioActual.rol === "LIDER_PROCESO" ? usuarioActual.id : calidad?.id,
     responsableActualNombre: usuarioActual.rol === "LIDER_PROCESO" ? usuarioActual.nombre : calidad?.nombre ?? "Gestión de Calidad",
@@ -49,7 +51,25 @@ function buildRegistro(data: SolicitudCambioData, usuarioActual: UsuarioGestionC
     aprobadorSeleccionadoId: aprobador?.id,
     aprobadorSeleccionadoNombre: aprobador?.nombre,
     aprobadorSeleccionadoRol: aprobador?.rol,
-    historial: [],
+    historial: [
+      {
+        accion: "CREAR_REGISTRO",
+        fecha: now.toISOString(),
+        usuario: usuarioActual.nombre,
+        rol: usuarioActual.rol,
+        estadoNuevo: "BORRADOR",
+        observaciones: "El líder identifica la necesidad de gestionar un cambio y crea el registro SIG-F006 en borrador.",
+      },
+      {
+        accion: "COMPLETAR_SOLICITUD",
+        fecha: completedAt.toISOString(),
+        usuario: usuarioActual.nombre,
+        rol: usuarioActual.rol,
+        estadoAnterior: "BORRADOR",
+        estadoNuevo: "CREADO",
+        observaciones: "Diligencia el formato SIG-F006, registra análisis asociados y define el plan de implementación del cambio.",
+      },
+    ],
     detalle: data,
   };
 }
@@ -99,6 +119,7 @@ export function GestionCambiosPage() {
 
     if (modalMode === "edit" && selectedRegistro) {
       const nextState = selectedRegistro.estado === "BORRADOR" ? "CREADO" : selectedRegistro.estado;
+      const changedToCreated = selectedRegistro.estado === "BORRADOR" && nextState === "CREADO";
       const updated: GestionCambio = {
         ...selectedRegistro,
         liderProceso: data.liderProceso || selectedRegistro.liderProceso,
@@ -112,17 +133,17 @@ export function GestionCambiosPage() {
         observacionesCorreccion: undefined,
         detalle: data,
         historial:
-          nextState === "CREADO"
+          changedToCreated
             ? [
                 ...selectedRegistro.historial,
                 {
-                  accion: "REENVIAR_CALIDAD",
+                  accion: "COMPLETAR_SOLICITUD",
                   fecha: new Date().toISOString(),
                   usuario: usuarioActual.nombre,
                   rol: usuarioActual.rol,
                   estadoAnterior: selectedRegistro.estado,
                   estadoNuevo: "CREADO",
-                  observaciones: "Registro actualizado y dejado listo para entrar al flujo de revisión.",
+                  observaciones: "Diligencia el formato SIG-F006, registra análisis asociados y define el plan de implementación del cambio.",
                 },
               ]
             : selectedRegistro.historial,
@@ -192,7 +213,14 @@ export function GestionCambiosPage() {
             responsableActual: "GESTION_CALIDAD",
             responsableActualId: calidad?.id,
             responsableActualNombre: calidad?.nombre ?? "Gestión de Calidad",
-            historial: [...item.historial, { ...historialEntry, estadoNuevo: "EN_REVISION_CALIDAD" }],
+            historial: [
+              ...item.historial,
+              {
+                ...historialEntry,
+                estadoNuevo: "EN_REVISION_CALIDAD",
+                observaciones: "El líder envía el SIG-F006 a Gestión de Calidad para revisión inicial.",
+              },
+            ],
           };
           return updatedRegistro;
         }
@@ -207,30 +235,21 @@ export function GestionCambiosPage() {
             responsableActualId: aprobador?.id ?? item.aprobadorSeleccionadoId,
             responsableActualNombre: aprobador?.nombre ?? item.aprobadorSeleccionadoNombre,
             validacionCalidad: payload?.validacionCalidad,
-            historial: [...item.historial, { ...historialEntry, estadoNuevo: "PENDIENTE_APROBACION" }],
+            historial: [
+              ...item.historial,
+              {
+                ...historialEntry,
+                estadoNuevo: "PENDIENTE_APROBACION",
+                observaciones: payload?.validacionCalidad || `Calidad valida que el cambio está conforme y remite el registro a ${aprobador?.nombre ?? item.aprobadorSeleccionadoNombre ?? "el responsable aprobador"}.`,
+              },
+            ],
           };
           return updatedRegistro;
         }
 
         if (action === "REGISTRAR_APROBACION") {
           const fechaAprobacion = payload?.aprobacion?.fecha ?? new Date().toISOString().slice(0, 10);
-          const calidad = usuarios.find((responsable) => responsable.empresa === item.empresa && responsable.rol === "GESTION_CALIDAD" && responsable.activo);
-          updatedRegistro = {
-            ...item,
-            estado: "APROBADO_APROBADOR",
-            responsableActual: "GESTION_CALIDAD",
-            responsableActualId: calidad?.id,
-            responsableActualNombre: calidad?.nombre ?? "Gestión de Calidad",
-            aprobacion: payload?.aprobacion,
-            fechaAprobacion,
-            historial: [...item.historial, { ...historialEntry, estadoNuevo: "APROBADO_APROBADOR" }],
-          };
-          return updatedRegistro;
-        }
-
-        if (action === "INICIAR_SEGUIMIENTO") {
-          const fechaInicioSeguimiento = payload?.seguimiento?.fechaSeguimiento ?? new Date().toISOString().slice(0, 10);
-          const fechaLimiteCierre = addMonths(fechaInicioSeguimiento, 3);
+          const fechaLimiteCierre = addMonths(fechaAprobacion, 3);
           const calidad = usuarios.find((responsable) => responsable.empresa === item.empresa && responsable.rol === "GESTION_CALIDAD" && responsable.activo);
           updatedRegistro = {
             ...item,
@@ -238,10 +257,20 @@ export function GestionCambiosPage() {
             responsableActual: "GESTION_CALIDAD",
             responsableActualId: calidad?.id,
             responsableActualNombre: calidad?.nombre ?? "Gestión de Calidad",
-            seguimiento: payload?.seguimiento,
-            fechaInicioSeguimiento,
+            aprobacion: payload?.aprobacion,
+            fechaAprobacion,
+            fechaInicioSeguimiento: fechaAprobacion,
             fechaLimiteCierre,
-            historial: [...item.historial, { ...historialEntry, estadoNuevo: "EN_SEGUIMIENTO_CALIDAD" }],
+            historial: [
+              ...item.historial,
+              {
+                ...historialEntry,
+                estadoNuevo: "EN_SEGUIMIENTO_CALIDAD",
+                observaciones: payload?.aprobacion?.observaciones
+                  ? `${payload.aprobacion.observaciones} El registro vuelve a Gestión de Calidad para seguimiento y cierre final. Fecha límite de cierre: ${fechaLimiteCierre}.`
+                  : `Gerencia Administrativa aprueba el cambio. El registro vuelve a Gestión de Calidad para seguimiento y cierre final. Fecha límite de cierre: ${fechaLimiteCierre}.`,
+              },
+            ],
           };
           return updatedRegistro;
         }
@@ -254,7 +283,14 @@ export function GestionCambiosPage() {
             responsableActualId: item.liderProcesoId,
             responsableActualNombre: item.liderProceso,
             aprobacion: payload?.aprobacion,
-            historial: [...item.historial, { ...historialEntry, estadoNuevo: "RECHAZADO_APROBADOR" }],
+            historial: [
+              ...item.historial,
+              {
+                ...historialEntry,
+                estadoNuevo: "RECHAZADO_APROBADOR",
+                observaciones: payload?.aprobacion?.observaciones || "El responsable aprobador rechaza el cambio y lo devuelve al líder de proceso.",
+              },
+            ],
           };
           return updatedRegistro;
         }
@@ -265,7 +301,14 @@ export function GestionCambiosPage() {
           responsableActual: "GESTION_CALIDAD",
           seguimiento: payload?.seguimiento,
           fechaCierre: payload?.seguimiento?.fechaCierre ?? new Date().toISOString().slice(0, 10),
-          historial: [...item.historial, { ...historialEntry, estadoNuevo: "CERRADO" }],
+          historial: [
+            ...item.historial,
+            {
+              ...historialEntry,
+              estadoNuevo: "CERRADO",
+              observaciones: payload?.seguimiento?.observaciones || "Calidad registra observaciones finales y cierra el formato SIG-F006.",
+            },
+          ],
         };
         return updatedRegistro;
       }),
@@ -316,7 +359,7 @@ export function GestionCambiosPage() {
             <HistorialGestionCambiosTable
               registros={registrosCreacion}
               emptyTitle="No tienes gestiones de cambio creadas"
-              emptyDescription="En esta pestaña ves los registros creados por ti o asociados a tu proceso."
+              emptyDescription="En esta pestaña consultas los registros creados por ti o asociados a tu proceso, junto con su estado e historial."
               onView={openViewModal}
             />
           </>

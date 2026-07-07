@@ -14,7 +14,6 @@ export const estadoLabels: Record<GestionCambioEstado, string> = {
   DEVUELTO_LIDER: "Devuelto al Líder",
   PENDIENTE_APROBACION: "Pendiente de aprobación",
   RECHAZADO_APROBADOR: "Rechazado",
-  APROBADO_APROBADOR: "Aprobado por responsable",
   EN_SEGUIMIENTO_CALIDAD: "En seguimiento por Calidad",
   CERRADO: "Cerrado",
   VENCIDO: "Vencido",
@@ -27,24 +26,17 @@ export const estadoBadgeClassName: Record<GestionCambioEstado, string> = {
   DEVUELTO_LIDER: "border-orange-200 bg-orange-50 text-orange-800",
   PENDIENTE_APROBACION: "border-blue-200 bg-blue-50 text-blue-800",
   RECHAZADO_APROBADOR: "border-red-200 bg-red-50 text-red-800",
-  APROBADO_APROBADOR: "border-indigo-200 bg-indigo-50 text-indigo-800",
   EN_SEGUIMIENTO_CALIDAD: "border-purple-200 bg-purple-50 text-purple-800",
   CERRADO: "border-emerald-200 bg-emerald-50 text-emerald-800",
   VENCIDO: "border-red-300 bg-red-50 text-red-900",
 };
 
 const approvalStatesByRole: Record<GestionCambioRol, GestionCambioEstado[]> = {
-  GESTION_CALIDAD: ["EN_REVISION_CALIDAD", "APROBADO_APROBADOR", "EN_SEGUIMIENTO_CALIDAD", "VENCIDO"],
+  GESTION_CALIDAD: ["EN_REVISION_CALIDAD", "EN_SEGUIMIENTO_CALIDAD", "VENCIDO"],
   LIDER_PROCESO: ["BORRADOR", "CREADO", "DEVUELTO_LIDER", "RECHAZADO_APROBADOR"],
   GERENCIA_ADMINISTRATIVA: ["PENDIENTE_APROBACION"],
   APROBADOR_ADICIONAL: ["PENDIENTE_APROBACION"],
 };
-
-function getVisibleStatesForCreation(usuario?: UsuarioGestionCambio) {
-  if (!usuario) return [];
-  if (usuario.rol === "LIDER_PROCESO") return ["BORRADOR", "CREADO", "DEVUELTO_LIDER"];
-  return ["BORRADOR", "CREADO"];
-}
 
 export function canAccessApproval(usuario?: UsuarioGestionCambio) {
   return Boolean(usuario && usuario.activo && approvalStatesByRole[usuario.rol]);
@@ -59,13 +51,23 @@ export function canEditCorrection(registro: GestionCambio, usuario?: UsuarioGest
   );
 }
 
+export function hasQualityInitialReview(registro: GestionCambio) {
+  return registro.historial.some((decision) => decision.accion === "VALIDAR_REMITIR" || decision.accion === "SOLICITAR_CORRECCION");
+}
+
+export function hasApproverDecision(registro: GestionCambio, usuario?: UsuarioGestionCambio) {
+  return registro.historial.some(
+    (decision) =>
+      (decision.accion === "REGISTRAR_APROBACION" || decision.accion === "REGISTRAR_RECHAZO") &&
+      (!usuario || decision.usuario === usuario.nombre),
+  );
+}
+
 export function filterRegistrosForCreation(registros: GestionCambio[], usuario?: UsuarioGestionCambio) {
   if (!usuario) return [];
-  const visibleStates = getVisibleStatesForCreation(usuario);
 
   return registros.filter((registro) => {
     if (registro.empresa !== usuario.empresa) return false;
-    if (!visibleStates.includes(registro.estado)) return false;
     if (registro.creadorId === usuario.id || registro.liderProcesoId === usuario.id) return true;
     return Boolean(usuario.proceso && registro.proceso === usuario.proceso);
   });
@@ -79,7 +81,12 @@ export function filterRegistrosForApproval(registros: GestionCambio[], usuario?:
     if (registro.empresa !== usuario.empresa) return false;
     if (!allowedStates.includes(registro.estado)) return false;
 
+    if (usuario.rol === "GESTION_CALIDAD" && registro.estado === "EN_REVISION_CALIDAD" && hasQualityInitialReview(registro)) {
+      return false;
+    }
+
     if (usuario.rol === "GERENCIA_ADMINISTRATIVA" || usuario.rol === "APROBADOR_ADICIONAL") {
+      if (hasApproverDecision(registro, usuario)) return false;
       return registro.responsableActualId === usuario.id || (!registro.responsableActualId && registro.responsableActual === usuario.rol);
     }
 

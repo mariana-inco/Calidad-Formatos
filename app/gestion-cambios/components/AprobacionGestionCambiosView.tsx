@@ -3,7 +3,17 @@
 import { ClipboardCheck, ShieldAlert } from "lucide-react";
 import type { GestionCambio, UsuarioGestionCambio } from "./types";
 import { HistorialGestionCambiosTable } from "./HistorialGestionCambiosTable";
-import { canAccessApproval, canEditCorrection, filterRegistrosForApproval, filterRegistrosForApprovalHistory, getDiasRestantes, getEffectiveEstado, roleLabels } from "./workflow";
+import {
+  canAccessApproval,
+  canEditCorrection,
+  filterRegistrosForApproval,
+  filterRegistrosForApprovalHistory,
+  getDiasRestantes,
+  getEffectiveEstado,
+  hasApproverDecision,
+  hasQualityInitialReview,
+  roleLabels,
+} from "./workflow";
 
 type AprobacionGestionCambiosViewProps = {
   registros: GestionCambio[];
@@ -67,21 +77,21 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
     (registro) => !registrosAsignados.some((pendiente) => pendiente.id === registro.id),
   );
 
-  const pendientesRevision = registrosAsignados.filter((registro) => registro.estado === "EN_REVISION_CALIDAD");
+  const pendientesRevision = registrosAsignados.filter((registro) => registro.estado === "EN_REVISION_CALIDAD" && !hasQualityInitialReview(registro));
   const devueltos = registros.filter(
     (registro) =>
       usuarioActual?.rol === "GESTION_CALIDAD" &&
       registro.empresa === usuarioActual.empresa &&
       (registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR"),
   );
-  const seguimiento = registrosAsignados.filter((registro) => ["EN_SEGUIMIENTO_CALIDAD", "APROBADO_APROBADOR"].includes(registro.estado));
+  const seguimiento = registrosAsignados.filter((registro) => registro.estado === "EN_SEGUIMIENTO_CALIDAD");
   const proximos = seguimiento.filter((registro) => {
     if (getEffectiveEstado(registro) === "VENCIDO") return true;
     const dias = getDiasRestantes(registro.fechaLimiteCierre);
     return dias !== null && dias <= 15;
   });
   const cerrados = registros.filter((registro) => usuarioActual?.rol === "GESTION_CALIDAD" && registro.empresa === usuarioActual.empresa && registro.estado === "CERRADO");
-  const pendientesAprobar = registrosAsignados.filter((registro) => registro.estado === "PENDIENTE_APROBACION");
+  const pendientesAprobar = registrosAsignados.filter((registro) => registro.estado === "PENDIENTE_APROBACION" && !hasApproverDecision(registro, usuarioActual));
 
   return (
     <div className="space-y-7">

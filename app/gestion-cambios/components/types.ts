@@ -5,7 +5,6 @@ export type GestionCambioEstado =
   | "DEVUELTO_LIDER"
   | "PENDIENTE_APROBACION"
   | "RECHAZADO_APROBADOR"
-  | "APROBADO_APROBADOR"
   | "EN_SEGUIMIENTO_CALIDAD"
   | "CERRADO"
   | "VENCIDO";
@@ -13,12 +12,13 @@ export type GestionCambioEstado =
 export type GestionCambioRol = "GESTION_CALIDAD" | "GERENCIA_ADMINISTRATIVA" | "LIDER_PROCESO" | "APROBADOR_ADICIONAL";
 
 export type GestionCambioWorkflowAction =
+  | "CREAR_REGISTRO"
+  | "COMPLETAR_SOLICITUD"
   | "SOLICITAR_CORRECCION"
   | "REENVIAR_CALIDAD"
   | "VALIDAR_REMITIR"
   | "REGISTRAR_APROBACION"
   | "REGISTRAR_RECHAZO"
-  | "INICIAR_SEGUIMIENTO"
   | "CERRAR_FORMATO";
 
 export type GestionCambioEmpresa = "Incominería" | "Dromos";

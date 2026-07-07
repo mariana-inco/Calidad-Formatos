@@ -3,13 +3,13 @@
 import { CalendarDays, FilePenLine, PlusCircle, UserCheck, Workflow } from "lucide-react";
 import { useState } from "react";
 import { analisisFields } from "./formData";
-import type { GestionCambio, GestionCambioWorkflowAction, SeguimientoCambioData, UsuarioGestionCambio } from "./types";
-import { canEditCorrection, estadoBadgeClassName, estadoLabels, roleLabels } from "./workflow";
+import type { AprobacionCambioData, GestionCambio, GestionCambioWorkflowAction, SeguimientoCambioData, UsuarioGestionCambio } from "./types";
+import { canEditCorrection, estadoBadgeClassName, estadoLabels, getDiasRestantes, getEffectiveEstado, getEstadoCierre, roleLabels } from "./workflow";
 
 export type WorkflowPayload = {
   observacionesCorreccion?: string;
   validacionCalidad?: string;
-  firmaGerencia?: string;
+  aprobacion?: AprobacionCambioData;
   seguimiento?: SeguimientoCambioData;
 };
 
@@ -61,7 +61,18 @@ export function GestionCambioDetalle({
   onEdit,
   onWorkflowAction,
 }: GestionCambioDetalleProps) {
-  const [firmaGerencia, setFirmaGerencia] = useState(usuarioActual?.nombre ?? "");
+  const [revisionCalidad, setRevisionCalidad] = useState(registro.validacionCalidad ?? "");
+  const [observacionesCorreccion, setObservacionesCorreccion] = useState(registro.observacionesCorreccion ?? "");
+  const [aprobacion, setAprobacion] = useState<AprobacionCambioData>(
+    registro.aprobacion ?? {
+      aprobado: "SI",
+      nombre: usuarioActual?.nombre ?? "",
+      cargo: roleLabels[usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA"],
+      fecha: new Date().toISOString().slice(0, 10),
+      observaciones: "",
+      rolAprobador: usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA",
+    },
+  );
   const [seguimiento, setSeguimiento] = useState<SeguimientoCambioData>(
     registro.seguimiento ?? {
       cambioEficaz: "",
@@ -69,12 +80,26 @@ export function GestionCambioDetalle({
       acciones: "",
       nombreCierre: usuarioActual?.nombre ?? "",
       cargoCierre: roleLabels[usuarioActual?.rol ?? "GESTION_CALIDAD"],
+      fechaSeguimiento: new Date().toISOString().slice(0, 10),
       fechaCierre: new Date().toISOString().slice(0, 10),
     },
   );
   const [seguimientoAgregado, setSeguimientoAgregado] = useState(Boolean(registro.seguimiento));
   const [error, setError] = useState("");
-  const isQualityApproval = registro.estado === "EN_REVISION" && usuarioActual?.rol === "GESTION_CALIDAD";
+
+  const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD";
+  const isQualityFollowup = (registro.estado === "APROBADO_APROBADOR" || registro.estado === "EN_SEGUIMIENTO_CALIDAD") && usuarioActual?.rol === "GESTION_CALIDAD";
+  const isApproverTurn =
+    registro.estado === "PENDIENTE_APROBACION" &&
+    usuarioActual &&
+    (registro.responsableActualId === usuarioActual.id || (!registro.responsableActualId && registro.responsableActual === usuarioActual.rol));
+  const canReenterQuality = Boolean(
+    usuarioActual &&
+      (registro.estado === "CREADO" || registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR") &&
+      (registro.creadorId === usuarioActual.id || registro.liderProcesoId === usuarioActual.id),
+  );
+  const estadoActual = getEffectiveEstado(registro);
+  const diasRestantes = getDiasRestantes(registro.fechaLimiteCierre);
 
   const requireText = (value: string, message: string) => {
     if (value.trim()) return true;
@@ -82,10 +107,25 @@ export function GestionCambioDetalle({
     return false;
   };
 
-  const registerSignature = () => {
-    if (!requireText(firmaGerencia, "El nombre de quien firma es obligatorio.")) return;
+  const requestLeaderCorrection = () => {
+    if (!requireText(observacionesCorreccion, "Escribe las observaciones para devolver el registro al líder.")) return;
     setError("");
-    onWorkflowAction?.("REGISTRAR_FIRMA", { firmaGerencia });
+    onWorkflowAction?.("SOLICITAR_CORRECCION", { observacionesCorreccion });
+  };
+
+  const sendToApprover = () => {
+    if (!requireText(revisionCalidad, "Registra la validación de Calidad antes de remitir.")) return;
+    setError("");
+    onWorkflowAction?.("VALIDAR_REMITIR", { validacionCalidad: revisionCalidad });
+  };
+
+  const registerApprovalDecision = () => {
+    if (!requireText(aprobacion.nombre, "El nombre del aprobador es obligatorio.")) return;
+    if (!requireText(aprobacion.cargo, "El cargo del aprobador es obligatorio.")) return;
+    if (!requireText(aprobacion.fecha, "La fecha de aprobación es obligatoria.")) return;
+    if (!requireText(aprobacion.observaciones, "Las observaciones de aprobación son obligatorias.")) return;
+    setError("");
+    onWorkflowAction?.(aprobacion.aprobado === "SI" ? "REGISTRAR_APROBACION" : "REGISTRAR_RECHAZO", { aprobacion });
   };
 
   const validateSeguimiento = () => {
@@ -97,6 +137,7 @@ export function GestionCambioDetalle({
     if (!requireText(seguimiento.acciones, "Las acciones del seguimiento son obligatorias.")) return false;
     if (!requireText(seguimiento.nombreCierre, "El nombre de quien realiza seguimiento y cierre es obligatorio.")) return false;
     if (!requireText(seguimiento.cargoCierre, "El cargo es obligatorio.")) return false;
+    if (!requireText(seguimiento.fechaSeguimiento, "La fecha de seguimiento es obligatoria.")) return false;
     if (!requireText(seguimiento.fechaCierre, "La fecha de cierre es obligatoria.")) return false;
     setError("");
     return true;
@@ -107,21 +148,101 @@ export function GestionCambioDetalle({
     setSeguimientoAgregado(true);
   };
 
-  const approveWithSeguimiento = () => {
-    if (!validateSeguimiento()) return;
-    onWorkflowAction?.("VALIDAR_REMITIR", {
-      validacionCalidad: seguimiento.cambioEficaz === "SI" ? "Cambio eficaz" : seguimiento.observaciones,
-      seguimiento,
-    });
-  };
-
   const closeFormat = () => {
     if (!validateSeguimiento()) return;
     setError("");
-    onWorkflowAction?.("CERRAR_FORMATO", { seguimiento });
+    onWorkflowAction?.(registro.estado === "APROBADO_APROBADOR" ? "INICIAR_SEGUIMIENTO" : "CERRAR_FORMATO", { seguimiento });
   };
 
-  const renderSeguimientoCambio = (mode: "approve" | "close") => (
+  const renderRevisionCalidad = () => (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-black text-slate-950">Revisión inicial de Calidad</h3>
+        <p className="mt-1 text-sm leading-6 text-slate-600">
+          Si el cambio está documentado, se remite a {registro.aprobadorSeleccionadoNombre ?? "el responsable seleccionado"}. Si falta información, vuelve al líder con observaciones.
+        </p>
+      </div>
+
+      <label className="block">
+        <span className="text-xs font-black uppercase tracking-wide text-slate-600">Validación de Calidad</span>
+        <textarea
+          value={revisionCalidad}
+          onChange={(event) => setRevisionCalidad(event.target.value)}
+          className={`${inputClassName} min-h-20`}
+          placeholder="Describe la revisión realizada y los puntos validados."
+        />
+      </label>
+
+      <label className="block">
+        <span className="text-xs font-black uppercase tracking-wide text-slate-600">Observaciones para devolución</span>
+        <textarea
+          value={observacionesCorreccion}
+          onChange={(event) => setObservacionesCorreccion(event.target.value)}
+          className={`${inputClassName} min-h-20`}
+          placeholder="Úsalo solo si el registro debe volver al líder de proceso."
+        />
+      </label>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={requestLeaderCorrection}
+          className="inline-flex h-11 items-center justify-center rounded-md border border-orange-200 bg-orange-50 px-5 text-sm font-bold text-orange-800 transition hover:bg-orange-100"
+        >
+          Devolver al líder
+        </button>
+        <PrimaryButton onClick={sendToApprover}>Remitir a aprobador</PrimaryButton>
+      </div>
+    </div>
+  );
+
+  const renderAprobacionCambio = () => (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-base font-black text-slate-950">Aprobación del cambio</h3>
+        <p className="mt-1 text-sm leading-6 text-slate-600">
+          Responsable actual: {registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="block">
+          <span className="text-xs font-black uppercase tracking-wide text-slate-600">¿El cambio solicitado es aprobado?</span>
+          <select
+            value={aprobacion.aprobado}
+            onChange={(event) => setAprobacion((current) => ({ ...current, aprobado: event.target.value as AprobacionCambioData["aprobado"] }))}
+            className={inputClassName}
+          >
+            <option value="SI">Sí</option>
+            <option value="NO">No</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-xs font-black uppercase tracking-wide text-slate-600">Nombre</span>
+          <input value={aprobacion.nombre} onChange={(event) => setAprobacion((current) => ({ ...current, nombre: event.target.value }))} className={inputClassName} />
+        </label>
+        <label className="block">
+          <span className="text-xs font-black uppercase tracking-wide text-slate-600">Cargo</span>
+          <input value={aprobacion.cargo} onChange={(event) => setAprobacion((current) => ({ ...current, cargo: event.target.value }))} className={inputClassName} />
+        </label>
+        <label className="block">
+          <span className="text-xs font-black uppercase tracking-wide text-slate-600">Fecha</span>
+          <input type="date" value={aprobacion.fecha} onChange={(event) => setAprobacion((current) => ({ ...current, fecha: event.target.value }))} className={inputClassName} />
+        </label>
+      </div>
+
+      <label className="block">
+        <span className="text-xs font-black uppercase tracking-wide text-slate-600">Observaciones de aprobación</span>
+        <textarea value={aprobacion.observaciones} onChange={(event) => setAprobacion((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-20`} />
+      </label>
+
+      <div className="flex justify-end">
+        <PrimaryButton onClick={registerApprovalDecision}>{aprobacion.aprobado === "SI" ? "Aprobar cambio" : "Rechazar cambio"}</PrimaryButton>
+      </div>
+    </div>
+  );
+
+  const renderSeguimientoCambio = () => (
     <div className="space-y-5">
       <div className="flex justify-center">
         <span className="inline-flex rounded-md border border-emerald-900 bg-white px-4 py-2 text-xs font-black uppercase text-emerald-950 shadow-md">
@@ -129,7 +250,7 @@ export function GestionCambioDetalle({
         </span>
       </div>
 
-      <div className="space-y-5">
+      <div className="grid gap-5 md:grid-cols-2">
         <label className="block">
           <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">¿El cambio fue eficaz?</span>
           <select
@@ -137,11 +258,7 @@ export function GestionCambioDetalle({
             onChange={(event) =>
               setSeguimiento((current) => {
                 const cambioEficaz = event.target.value as SeguimientoCambioData["cambioEficaz"];
-                return {
-                  ...current,
-                  cambioEficaz,
-                  observaciones: cambioEficaz === "SI" ? "" : current.observaciones,
-                };
+                return { ...current, cambioEficaz, observaciones: cambioEficaz === "SI" ? "" : current.observaciones };
               })
             }
             className={inputClassName}
@@ -151,57 +268,29 @@ export function GestionCambioDetalle({
             <option value="NO">No</option>
           </select>
         </label>
-
-        {seguimiento.cambioEficaz === "NO" ? (
-          <label className="block">
-            <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">
-              Observaciones <span className="normal-case">(Definir las causas o fallas que afectaron su implementación)</span>
-            </span>
-            <textarea
-              value={seguimiento.observaciones}
-              onChange={(event) => setSeguimiento((current) => ({ ...current, observaciones: event.target.value }))}
-              className={`${inputClassName} min-h-16`}
-            />
-          </label>
-        ) : null}
-
         <label className="block">
-          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">
-            Acciones <span className="normal-case">(Definir las acciones a tomar para implementar el cambio según las causas o fallas detectadas)</span>
-          </span>
-          <textarea
-            value={seguimiento.acciones}
-            onChange={(event) => setSeguimiento((current) => ({ ...current, acciones: event.target.value }))}
-            className={`${inputClassName} min-h-16`}
-          />
+          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Fecha de seguimiento</span>
+          <input type="date" value={seguimiento.fechaSeguimiento} onChange={(event) => setSeguimiento((current) => ({ ...current, fechaSeguimiento: event.target.value }))} className={inputClassName} />
         </label>
-
+        <label className="block md:col-span-2">
+          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Observaciones</span>
+          <textarea value={seguimiento.observaciones} onChange={(event) => setSeguimiento((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-16`} />
+        </label>
+        <label className="block md:col-span-2">
+          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Acciones a tomar</span>
+          <textarea value={seguimiento.acciones} onChange={(event) => setSeguimiento((current) => ({ ...current, acciones: event.target.value }))} className={`${inputClassName} min-h-16`} />
+        </label>
         <label className="block">
           <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Nombre de quien realiza el seguimiento y cierre</span>
-          <input
-            value={seguimiento.nombreCierre}
-            onChange={(event) => setSeguimiento((current) => ({ ...current, nombreCierre: event.target.value }))}
-            className={inputClassName}
-          />
+          <input value={seguimiento.nombreCierre} onChange={(event) => setSeguimiento((current) => ({ ...current, nombreCierre: event.target.value }))} className={inputClassName} />
         </label>
-
         <label className="block">
           <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Cargo</span>
-          <input
-            value={seguimiento.cargoCierre}
-            onChange={(event) => setSeguimiento((current) => ({ ...current, cargoCierre: event.target.value }))}
-            className={inputClassName}
-          />
+          <input value={seguimiento.cargoCierre} onChange={(event) => setSeguimiento((current) => ({ ...current, cargoCierre: event.target.value }))} className={inputClassName} />
         </label>
-
         <label className="block">
-          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Fecha</span>
-          <input
-            type="date"
-            value={seguimiento.fechaCierre}
-            onChange={(event) => setSeguimiento((current) => ({ ...current, fechaCierre: event.target.value }))}
-            className={inputClassName}
-          />
+          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Fecha de cierre</span>
+          <input type="date" value={seguimiento.fechaCierre} onChange={(event) => setSeguimiento((current) => ({ ...current, fechaCierre: event.target.value }))} className={inputClassName} />
         </label>
       </div>
 
@@ -211,33 +300,36 @@ export function GestionCambioDetalle({
           onClick={addSeguimiento}
           aria-label="Agregar seguimiento"
           title="Agregar seguimiento"
-          className="inline-grid size-12 place-items-center rounded-md border-2 border-blue-900 bg-emerald-50 text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+          className="inline-flex h-12 items-center justify-center gap-3 rounded-md border-2 border-emerald-900 bg-white px-6 text-sm font-bold text-emerald-950 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700"
         >
-          <PlusCircle className="size-8" />
+          <PlusCircle className="size-5" />
+          <span>Agregar seguimiento</span>
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-slate-300">
-        <div className="grid min-w-[900px] grid-cols-[0.7fr_1.25fr_1.25fr_1.25fr_0.85fr_0.7fr] bg-emerald-900 text-center text-[11px] font-black uppercase italic text-white">
-          <div className="border-r border-white/30 px-3 py-3">¿El cambio fue eficaz?</div>
+      <div className="overflow-x-auto rounded-md border border-slate-300">
+        <div className="grid min-w-[980px] grid-cols-[0.6fr_1.1fr_1.1fr_1.15fr_0.75fr_0.75fr_0.75fr] bg-emerald-900 text-center text-[11px] font-black uppercase italic text-white">
+          <div className="border-r border-white/30 px-3 py-3">¿Eficaz?</div>
           <div className="border-r border-white/30 px-3 py-3">Observaciones</div>
           <div className="border-r border-white/30 px-3 py-3">Acciones</div>
-          <div className="border-r border-white/30 px-3 py-3">Nombre de quien realiza el seguimiento y cierre</div>
+          <div className="border-r border-white/30 px-3 py-3">Responsable cierre</div>
           <div className="border-r border-white/30 px-3 py-3">Cargo</div>
-          <div className="px-3 py-3">Fecha</div>
+          <div className="border-r border-white/30 px-3 py-3">Seguimiento</div>
+          <div className="px-3 py-3">Cierre</div>
         </div>
-        <div className="grid min-w-[900px] grid-cols-[0.7fr_1.25fr_1.25fr_1.25fr_0.85fr_0.7fr] bg-slate-50 text-center text-sm text-slate-800">
+        <div className="grid min-w-[980px] grid-cols-[0.6fr_1.1fr_1.1fr_1.15fr_0.75fr_0.75fr_0.75fr] bg-slate-50 text-center text-sm text-slate-800">
           <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.cambioEficaz : ""}</div>
           <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.observaciones : ""}</div>
           <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.acciones : ""}</div>
           <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.nombreCierre : ""}</div>
           <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.cargoCierre : ""}</div>
+          <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.fechaSeguimiento : ""}</div>
           <div className="px-3 py-3">{seguimientoAgregado ? seguimiento.fechaCierre : ""}</div>
         </div>
       </div>
 
       <div className="flex justify-end">
-        {mode === "approve" ? <PrimaryButton onClick={approveWithSeguimiento}>Guardar seguimiento y aprobar</PrimaryButton> : <PrimaryButton onClick={closeFormat}>Cerrar formato</PrimaryButton>}
+        <PrimaryButton onClick={closeFormat}>{registro.estado === "APROBADO_APROBADOR" ? "Iniciar seguimiento" : "Cerrar formato"}</PrimaryButton>
       </div>
     </div>
   );
@@ -247,13 +339,18 @@ export function GestionCambioDetalle({
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <DetailItem label="Código" value={registro.codigo} />
-          <DetailItem label="Fecha" value={registro.fecha} />
+          <DetailItem label="Fecha de creación" value={registro.fecha} />
           <DetailItem label="Empresa" value={registro.empresa} />
-          <DetailItem label="Estado" value={<span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[registro.estado]}`}>{estadoLabels[registro.estado]}</span>} />
-          <DetailItem label="Responsable actual" value={roleLabels[registro.responsableActual]} />
+          <DetailItem label="Estado actual" value={<span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[estadoActual]}`}>{estadoLabels[estadoActual]}</span>} />
+          <DetailItem label="Responsable actual" value={registro.responsableActualNombre ?? roleLabels[registro.responsableActual]} />
           <DetailItem label="Líder de proceso" value={registro.detalle.liderProceso} />
           <DetailItem label="Proceso" value={registro.detalle.proceso} />
           <DetailItem label="Tipo de cambio" value={registro.tipoCambio} />
+          <DetailItem label="Aprobador seleccionado" value={registro.aprobadorSeleccionadoNombre} />
+          <DetailItem label="Fecha de aprobación" value={registro.fechaAprobacion} />
+          <DetailItem label="Fecha límite de cierre" value={registro.fechaLimiteCierre} />
+          <DetailItem label="Días restantes" value={diasRestantes === null ? "" : diasRestantes} />
+          <DetailItem label="Estado del cierre" value={getEstadoCierre(registro)} />
         </div>
       </section>
 
@@ -290,51 +387,59 @@ export function GestionCambioDetalle({
 
       {showApprovalActions ? (
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          {isQualityApproval ? (
-            renderSeguimientoCambio("approve")
-          ) : (
-            <div className="flex items-start gap-3">
-              <FilePenLine className="mt-1 size-5 text-emerald-800" />
-              <div className="w-full space-y-5">
-                <div>
-                  <h3 className="text-base font-black text-slate-950">Acciones del flujo</h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">Solo se habilitan las acciones correspondientes al responsable actual.</p>
-                </div>
-
-                {registro.estado === "EN_REVISION" && usuarioActual?.rol === "GESTION_CALIDAD" ? renderSeguimientoCambio("approve") : null}
-
-                {registro.estado === "REQUIERE_CORRECCION" && canEditCorrection(registro, usuarioActual) ? (
-                  <div className="space-y-4">
-                    <DetailItem label="Observaciones de Calidad" value={registro.observacionesCorreccion} />
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800">
-                        Editar formato
-                      </button>
-                      <PrimaryButton onClick={() => onWorkflowAction?.("REENVIAR_CALIDAD")}>Reenviar a Calidad</PrimaryButton>
-                    </div>
-                  </div>
-                ) : null}
-
-                {registro.estado === "PENDIENTE_FIRMA" && usuarioActual?.rol === "GERENCIA_ADMINISTRATIVA" ? (
-                  <div className="space-y-4">
-                    <label className="block max-w-xl">
-                      <span className="text-xs font-black uppercase tracking-wide text-slate-600">Nombre de quien registra firma</span>
-                      <input value={firmaGerencia} onChange={(event) => setFirmaGerencia(event.target.value)} className={inputClassName} />
-                    </label>
-                    <PrimaryButton onClick={registerSignature}>Registrar firma</PrimaryButton>
-                  </div>
-                ) : null}
-
-                {registro.estado === "EN_SEGUIMIENTO" && usuarioActual?.rol === "GESTION_CALIDAD" ? renderSeguimientoCambio("close") : null}
-
-                {registro.estado === "CERRADO" ? <p className="text-sm font-bold text-emerald-700">El formato ya fue cerrado.</p> : null}
-                {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
+          <div className="flex items-start gap-3">
+            <FilePenLine className="mt-1 size-5 text-emerald-800" />
+            <div className="w-full space-y-5">
+              <div>
+                <h3 className="text-base font-black text-slate-950">Acciones del flujo</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Solo se habilitan las acciones correspondientes al responsable actual.</p>
               </div>
+
+              {isQualityReview ? renderRevisionCalidad() : null}
+
+              {canReenterQuality ? (
+                <div className="space-y-4">
+                  <DetailItem label={registro.estado === "RECHAZADO_APROBADOR" ? "Observaciones del aprobador" : "Observaciones de Calidad"} value={registro.aprobacion?.observaciones ?? registro.observacionesCorreccion} />
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800">
+                      Editar formato
+                    </button>
+                    <PrimaryButton onClick={() => onWorkflowAction?.("REENVIAR_CALIDAD")}>{registro.estado === "CREADO" ? "Enviar a Calidad" : "Reenviar a Calidad"}</PrimaryButton>
+                  </div>
+                </div>
+              ) : null}
+
+              {isApproverTurn ? renderAprobacionCambio() : null}
+              {isQualityFollowup ? renderSeguimientoCambio() : null}
+              {registro.estado === "CERRADO" ? <p className="text-sm font-bold text-emerald-700">El formato ya fue cerrado.</p> : null}
+              {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
             </div>
-          )}
-          {isQualityApproval && error ? <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
+          </div>
         </section>
       ) : null}
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-base font-black text-slate-950">Línea de tiempo del registro</h3>
+        <div className="mt-4 space-y-3">
+          {registro.historial.length > 0 ? (
+            registro.historial.map((evento) => (
+              <div key={`${evento.fecha}-${evento.accion}`} className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-sm font-black text-slate-950">
+                  {evento.usuario} {evento.rol ? `- ${roleLabels[evento.rol]}` : ""}
+                </p>
+                <p className="mt-1 text-xs font-semibold uppercase text-slate-500">{new Date(evento.fecha).toLocaleString("es-CO")}</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  {evento.estadoAnterior ? `${estadoLabels[evento.estadoAnterior]} -> ` : ""}
+                  {evento.estadoNuevo ? estadoLabels[evento.estadoNuevo] : evento.accion}
+                </p>
+                {evento.observaciones ? <p className="mt-1 text-sm leading-6 text-slate-600">{evento.observaciones}</p> : null}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-slate-500">Sin movimientos registrados.</p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

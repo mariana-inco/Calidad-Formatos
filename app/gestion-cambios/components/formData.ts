@@ -1,5 +1,4 @@
 export const solicitudFields = [
-  { id: "nombre-lider-proceso", label: "NOMBRE DEL LIDER DE PROCESO", type: "text", placeholder: "Ingrese nombre completo" },
   { id: "proceso", label: "PROCESO", type: "select", placeholder: "Seleccione un proceso" },
 ] as const;
 

@@ -1,17 +1,24 @@
 export type GestionCambioEstado =
-  | "EN_REVISION"
-  | "REQUIERE_CORRECCION"
-  | "PENDIENTE_FIRMA"
-  | "EN_SEGUIMIENTO"
-  | "CERRADO";
+  | "BORRADOR"
+  | "CREADO"
+  | "EN_REVISION_CALIDAD"
+  | "DEVUELTO_LIDER"
+  | "PENDIENTE_APROBACION"
+  | "RECHAZADO_APROBADOR"
+  | "APROBADO_APROBADOR"
+  | "EN_SEGUIMIENTO_CALIDAD"
+  | "CERRADO"
+  | "VENCIDO";
 
-export type GestionCambioRol = "GESTION_CALIDAD" | "GERENCIA_ADMINISTRATIVA" | "LIDER_PROCESO";
+export type GestionCambioRol = "GESTION_CALIDAD" | "GERENCIA_ADMINISTRATIVA" | "LIDER_PROCESO" | "APROBADOR_ADICIONAL";
 
 export type GestionCambioWorkflowAction =
   | "SOLICITAR_CORRECCION"
   | "REENVIAR_CALIDAD"
   | "VALIDAR_REMITIR"
-  | "REGISTRAR_FIRMA"
+  | "REGISTRAR_APROBACION"
+  | "REGISTRAR_RECHAZO"
+  | "INICIAR_SEGUIMIENTO"
   | "CERRAR_FORMATO";
 
 export type GestionCambioEmpresa = "Incominería" | "Dromos";
@@ -35,11 +42,13 @@ export type PlanActividad = {
 
 export type SolicitudCambioData = {
   empresa: GestionCambioEmpresa;
-  liderProceso: string;
+  liderProceso?: string;
+  liderProcesoId?: string;
   proceso: string;
   tiposCambio: string[];
   analisis: Record<string, string>;
   plan: PlanActividad[];
+  aprobadorSeleccionadoId?: string;
 };
 
 export type SeguimientoCambioData = {
@@ -48,6 +57,7 @@ export type SeguimientoCambioData = {
   acciones: string;
   nombreCierre: string;
   cargoCierre: string;
+  fechaSeguimiento: string;
   fechaCierre: string;
 };
 
@@ -55,7 +65,19 @@ export type GestionCambioDecision = {
   accion: GestionCambioWorkflowAction;
   fecha: string;
   usuario: string;
+  rol?: GestionCambioRol;
+  estadoAnterior?: GestionCambioEstado;
+  estadoNuevo?: GestionCambioEstado;
   observaciones?: string;
+};
+
+export type AprobacionCambioData = {
+  aprobado: "SI" | "NO";
+  nombre: string;
+  cargo: string;
+  fecha: string;
+  observaciones: string;
+  rolAprobador: GestionCambioRol;
 };
 
 export type GestionCambio = {
@@ -68,15 +90,21 @@ export type GestionCambio = {
   tipoCambio: string;
   estado: GestionCambioEstado;
   responsableActual: GestionCambioRol;
+  responsableActualId?: string;
+  responsableActualNombre?: string;
   creadorId: string;
   liderProcesoId?: string;
+  aprobadorSeleccionadoId?: string;
+  aprobadorSeleccionadoNombre?: string;
+  aprobadorSeleccionadoRol?: GestionCambioRol;
   validacionCalidad?: string;
   observacionesCorreccion?: string;
-  firmaGerencia?: {
-    nombre: string;
-    fecha: string;
-  };
+  aprobacion?: AprobacionCambioData;
   seguimiento?: SeguimientoCambioData;
+  fechaAprobacion?: string;
+  fechaInicioSeguimiento?: string;
+  fechaLimiteCierre?: string;
+  fechaCierre?: string;
   historial: GestionCambioDecision[];
   detalle: SolicitudCambioData;
 };

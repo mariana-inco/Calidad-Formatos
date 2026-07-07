@@ -13,12 +13,14 @@ import {
   tipoCambioField,
   tipoCambioOptions,
 } from "./formData";
-import type { PlanActividad, SolicitudCambioData } from "./types";
+import type { PlanActividad, SolicitudCambioData, UsuarioGestionCambio } from "./types";
+import { roleLabels } from "./workflow";
 
 type SolicitudCambioFormProps = {
   formId?: string;
   empresaActiva: SolicitudCambioData["empresa"];
   initialData?: SolicitudCambioData;
+  responsablesAprobacion?: UsuarioGestionCambio[];
   onSubmit?: (data: SolicitudCambioData) => void;
 };
 
@@ -39,9 +41,8 @@ const analisisIcons: Record<string, React.ReactNode> = {
   "aspectos-impactos-ambientales": <Leaf className="size-3.5" />,
 };
 
-export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubmit }: SolicitudCambioFormProps) {
+export function SolicitudCambioForm({ formId, empresaActiva, initialData, responsablesAprobacion = [], onSubmit }: SolicitudCambioFormProps) {
   const [solicitudValues, setSolicitudValues] = useState<Record<string, string>>(() => ({
-    "nombre-lider-proceso": initialData?.liderProceso ?? "",
     proceso: initialData?.proceso ?? "",
   }));
   const [analisisValues, setAnalisisValues] = useState<Record<string, string>>(() => ({ ...(initialData?.analisis ?? {}) }));
@@ -50,6 +51,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
   const [tiposCambio, setTiposCambio] = useState<string[]>(() => initialData?.tiposCambio ?? []);
   const [planForm, setPlanForm] = useState(emptyPlanForm);
   const [planRows, setPlanRows] = useState<PlanActividad[]>(() => initialData?.plan ?? []);
+  const [aprobadorSeleccionadoId, setAprobadorSeleccionadoId] = useState(initialData?.aprobadorSeleccionadoId ?? responsablesAprobacion[0]?.id ?? "");
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
   const isTipoCambioOtros = tipoCambioSeleccionado === "OTROS";
 
@@ -136,11 +138,13 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
 
     onSubmit?.({
       empresa: empresaActiva,
-      liderProceso: solicitudValues["nombre-lider-proceso"] ?? "",
+      liderProceso: initialData?.liderProceso,
+      liderProcesoId: initialData?.liderProcesoId,
       proceso: solicitudValues.proceso ?? "",
       tiposCambio: finalTiposCambio,
       analisis,
       plan: planRows,
+      aprobadorSeleccionadoId,
     });
   };
 
@@ -207,7 +211,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
                         type="button"
                         aria-label="Editar tipo de cambio"
                         onClick={() => editarTipoCambio(tipoCambio)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
                       >
                         <Pencil className="size-3.5" />
                       </button>
@@ -215,7 +219,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
                         type="button"
                         aria-label="Eliminar tipo de cambio"
                         onClick={() => eliminarTipoCambio(tipoCambio)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -224,6 +228,28 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
                 ))}
               </div>
             ) : null}
+
+            <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+              <label className="block">
+                <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Enviar para aprobación a</span>
+                <select
+                  value={aprobadorSeleccionadoId}
+                  onChange={(event) => setAprobadorSeleccionadoId(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-950 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Seleccione responsable configurado</option>
+                  {responsablesAprobacion.map((responsable) => (
+                    <option key={responsable.id} value={responsable.id}>
+                      {responsable.nombre} - {roleLabels[responsable.rol]}
+                      {responsable.proceso ? ` - ${responsable.proceso}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="mt-2 text-xs font-semibold leading-5 text-blue-900">
+                Calidad revisa primero la documentación y, si está completa, remite el registro al responsable seleccionado.
+              </p>
+            </div>
           </div>
         </SectionWrapper>
 
@@ -291,7 +317,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
                         type="button"
                         aria-label="Editar fila del plan"
                         onClick={() => editarPlan(plan)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
                       >
                         <Pencil className="size-3.5" />
                       </button>
@@ -299,7 +325,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
                         type="button"
                         aria-label="Eliminar fila del plan"
                         onClick={() => eliminarPlan(plan.id)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
                       >
                         <Trash2 className="size-3.5" />
                       </button>

@@ -46,6 +46,12 @@ const roleConfigs: RoleConfig[] = [
     description: "Diligencia la solicitud y corrige el formato cuando Calidad devuelve observaciones.",
     badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
   },
+  {
+    rol: "APROBADOR_ADICIONAL",
+    title: "Aprobadores adicionales",
+    description: "Responsables configurables por empresa, proceso o especialidad para aprobar cambios que no pasan por Gerencia.",
+    badgeClassName: "border-indigo-200 bg-indigo-50 text-indigo-800",
+  },
 ];
 
 const emptyDraft: UsuarioDraft = { nombre: "", correo: "", proceso: "" };

@@ -3,7 +3,7 @@
 import { ClipboardCheck, ShieldAlert } from "lucide-react";
 import type { GestionCambio, UsuarioGestionCambio } from "./types";
 import { HistorialGestionCambiosTable } from "./HistorialGestionCambiosTable";
-import { canAccessApproval, canEditCorrection, filterRegistrosForApproval, filterRegistrosForApprovalHistory, roleLabels } from "./workflow";
+import { canAccessApproval, canEditCorrection, filterRegistrosForApproval, filterRegistrosForApprovalHistory, getDiasRestantes, getEffectiveEstado, roleLabels } from "./workflow";
 
 type AprobacionGestionCambiosViewProps = {
   registros: GestionCambio[];
@@ -11,6 +11,39 @@ type AprobacionGestionCambiosViewProps = {
   onView: (registro: GestionCambio) => void;
   onEdit: (registro: GestionCambio) => void;
 };
+
+function ApprovalSection({
+  title,
+  description,
+  registros,
+  usuarioActual,
+  onView,
+  onEdit,
+}: {
+  title: string;
+  description: string;
+  registros: GestionCambio[];
+  usuarioActual?: UsuarioGestionCambio;
+  onView: (registro: GestionCambio) => void;
+  onEdit: (registro: GestionCambio) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-black uppercase text-slate-950">{title}</h2>
+        <p className="mt-1 text-sm text-slate-600">{description}</p>
+      </div>
+      <HistorialGestionCambiosTable
+        registros={registros}
+        emptyTitle="No hay registros en esta bandeja"
+        emptyDescription="Cuando el flujo asigne registros a esta etapa, aparecerán aquí."
+        canEdit={(registro) => canEditCorrection(registro, usuarioActual)}
+        onView={onView}
+        onEdit={onEdit}
+      />
+    </section>
+  );
+}
 
 export function AprobacionGestionCambiosView({ registros, usuarioActual, onView, onEdit }: AprobacionGestionCambiosViewProps) {
   if (!canAccessApproval(usuarioActual)) {
@@ -21,7 +54,7 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
           <div>
             <h1 className="text-lg font-black">Aprobación no disponible para este usuario</h1>
             <p className="mt-1 text-sm leading-6">
-              Esta pestaña solo está visible para Gestión de Calidad, Líder de Proceso y Gerencia Administrativa.
+              Esta pestaña solo está visible para usuarios activos configurados como Calidad, líderes o aprobadores.
             </p>
           </div>
         </div>
@@ -29,21 +62,26 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
     );
   }
 
-  const registrosAprobacion = filterRegistrosForApproval(registros, usuarioActual);
+  const registrosAsignados = filterRegistrosForApproval(registros, usuarioActual);
   const registrosHistorial = filterRegistrosForApprovalHistory(registros, usuarioActual).filter(
-    (registro) => !registrosAprobacion.some((pendiente) => pendiente.id === registro.id),
+    (registro) => !registrosAsignados.some((pendiente) => pendiente.id === registro.id),
   );
-  const historialEstadoBadge = () => {
-    if (usuarioActual?.rol === "GESTION_CALIDAD") {
-      return { label: "Aprobado", className: "border-emerald-200 bg-emerald-50 text-emerald-800" };
-    }
 
-    if (usuarioActual?.rol === "GERENCIA_ADMINISTRATIVA") {
-      return { label: "Firmado", className: "border-blue-200 bg-blue-50 text-blue-800" };
-    }
-
-    return { label: "Corregido", className: "border-purple-200 bg-purple-50 text-purple-800" };
-  };
+  const pendientesRevision = registrosAsignados.filter((registro) => registro.estado === "EN_REVISION_CALIDAD");
+  const devueltos = registros.filter(
+    (registro) =>
+      usuarioActual?.rol === "GESTION_CALIDAD" &&
+      registro.empresa === usuarioActual.empresa &&
+      (registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR"),
+  );
+  const seguimiento = registrosAsignados.filter((registro) => ["EN_SEGUIMIENTO_CALIDAD", "APROBADO_APROBADOR"].includes(registro.estado));
+  const proximos = seguimiento.filter((registro) => {
+    if (getEffectiveEstado(registro) === "VENCIDO") return true;
+    const dias = getDiasRestantes(registro.fechaLimiteCierre);
+    return dias !== null && dias <= 15;
+  });
+  const cerrados = registros.filter((registro) => usuarioActual?.rol === "GESTION_CALIDAD" && registro.empresa === usuarioActual.empresa && registro.estado === "CERRADO");
+  const pendientesAprobar = registrosAsignados.filter((registro) => registro.estado === "PENDIENTE_APROBACION");
 
   return (
     <div className="space-y-7">
@@ -61,34 +99,22 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
         </div>
       </section>
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-black uppercase text-slate-950">Pendientes de aprobación</h2>
-          <p className="mt-1 text-sm text-slate-600">Registros asignados actualmente a {usuarioActual ? roleLabels[usuarioActual.rol] : "este rol"}.</p>
-        </div>
-        <HistorialGestionCambiosTable
-          registros={registrosAprobacion}
-          emptyTitle="No hay registros pendientes para este rol"
-          emptyDescription="Cuando el flujo asigne registros a este responsable, aparecerán aquí."
-          canEdit={(registro) => canEditCorrection(registro, usuarioActual)}
-          onView={onView}
-          onEdit={onEdit}
-        />
-      </section>
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-black uppercase text-slate-950">Historial de aprobación</h2>
-          <p className="mt-1 text-sm text-slate-600">Registros ya gestionados por el usuario activo en esta etapa.</p>
-        </div>
-        <HistorialGestionCambiosTable
-          registros={registrosHistorial}
-          emptyTitle="No hay registros aprobados en el historial"
-          emptyDescription="Cuando apruebes o gestiones un registro, quedará visible aquí."
-          getEstadoBadge={historialEstadoBadge}
-          onView={onView}
-        />
-      </section>
+      {usuarioActual?.rol === "GESTION_CALIDAD" ? (
+        <>
+          <ApprovalSection title="Pendientes de revisión inicial" description="Registros asignados a Calidad para validar documentación." registros={pendientesRevision} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+          <ApprovalSection title="Devueltos o pendientes de ajuste" description="Registros que están en manos del líder o fueron rechazados por el aprobador." registros={devueltos} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+          <ApprovalSection title="Aprobados pendientes de seguimiento" description="Registros que ya aprobaron y deben cerrarse por Gestión de Calidad." registros={seguimiento} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+          <ApprovalSection title="Próximos a vencer" description="Registros con fecha límite de cierre vencida o dentro de los próximos 15 días." registros={proximos} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+          <ApprovalSection title="Historial de registros cerrados" description="Registros cerrados por Gestión de Calidad." registros={cerrados} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+        </>
+      ) : usuarioActual?.rol === "GERENCIA_ADMINISTRATIVA" || usuarioActual?.rol === "APROBADOR_ADICIONAL" ? (
+        <>
+          <ApprovalSection title="Pendientes por aprobar" description="Registros asignados a tu usuario o rol aprobador." registros={pendientesAprobar} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+          <ApprovalSection title="Historial de aprobaciones realizadas" description="Registros que ya aprobaste o rechazaste." registros={registrosHistorial} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+        </>
+      ) : (
+        <ApprovalSection title="Pendientes de ajuste" description="Registros devueltos al líder de proceso para corrección." registros={registrosAsignados} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+      )}
     </div>
   );
 }

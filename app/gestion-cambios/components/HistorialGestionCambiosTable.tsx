@@ -2,7 +2,7 @@
 
 import { CalendarDays, CircleDot, Eye, Hash, Pencil, Tags, UserCheck, UserRound, Workflow } from "lucide-react";
 import type { GestionCambio } from "./types";
-import { estadoBadgeClassName, estadoLabels, roleLabels } from "./workflow";
+import { estadoBadgeClassName, estadoLabels, getEffectiveEstado, roleLabels } from "./workflow";
 
 type HistorialGestionCambiosTableProps = {
   registros: GestionCambio[];
@@ -22,8 +22,8 @@ function EstadoBadge({
   getEstadoBadge?: (registro: GestionCambio) => { label: string; className: string };
 }) {
   const estadoBadge = getEstadoBadge?.(registro) ?? {
-    label: estadoLabels[registro.estado],
-    className: estadoBadgeClassName[registro.estado],
+    label: estadoLabels[getEffectiveEstado(registro)],
+    className: estadoBadgeClassName[getEffectiveEstado(registro)],
   };
 
   return (
@@ -104,7 +104,7 @@ export function HistorialGestionCambiosTable({
                   <td className="px-5 py-5">{registro.proceso}</td>
                   <td className="max-w-xs px-5 py-5 leading-6">{registro.tipoCambio}</td>
                   <td className="px-5 py-4"><EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} /></td>
-                  <td className="px-5 py-5 font-semibold">{roleLabels[registro.responsableActual]}</td>
+                  <td className="px-5 py-5 font-semibold">{registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-center gap-2">
                       <ActionButton label="Ver detalle" onClick={() => onView(registro)}><Eye className="size-4" /></ActionButton>
@@ -136,7 +136,7 @@ export function HistorialGestionCambiosTable({
                 <p><span className="font-bold text-slate-950">Empresa:</span> {registro.empresa}</p>
                 <p><span className="font-bold text-slate-950">Proceso:</span> {registro.proceso}</p>
                 <p><span className="font-bold text-slate-950">Tipo:</span> {registro.tipoCambio}</p>
-                <p><span className="font-bold text-slate-950">Responsable:</span> {roleLabels[registro.responsableActual]}</p>
+                <p><span className="font-bold text-slate-950">Responsable:</span> {registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</p>
               </div>
               <div className="mt-4 flex justify-end gap-2">
                 <ActionButton label="Ver detalle" onClick={() => onView(registro)}><Eye className="size-4" /></ActionButton>

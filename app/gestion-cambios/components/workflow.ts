@@ -4,41 +4,71 @@ export const roleLabels: Record<GestionCambioRol, string> = {
   GESTION_CALIDAD: "Gestión de Calidad",
   GERENCIA_ADMINISTRATIVA: "Gerencia Administrativa",
   LIDER_PROCESO: "Líder de Proceso",
+  APROBADOR_ADICIONAL: "Aprobador adicional",
 };
 
 export const estadoLabels: Record<GestionCambioEstado, string> = {
-  EN_REVISION: "En revisión",
-  REQUIERE_CORRECCION: "Requiere corrección",
-  PENDIENTE_FIRMA: "Pendiente firma",
-  EN_SEGUIMIENTO: "En seguimiento",
+  BORRADOR: "Borrador",
+  CREADO: "Creado",
+  EN_REVISION_CALIDAD: "En revisión por Calidad",
+  DEVUELTO_LIDER: "Devuelto al Líder",
+  PENDIENTE_APROBACION: "Pendiente de aprobación",
+  RECHAZADO_APROBADOR: "Rechazado",
+  APROBADO_APROBADOR: "Aprobado por responsable",
+  EN_SEGUIMIENTO_CALIDAD: "En seguimiento por Calidad",
   CERRADO: "Cerrado",
+  VENCIDO: "Vencido",
 };
 
 export const estadoBadgeClassName: Record<GestionCambioEstado, string> = {
-  EN_REVISION: "border-amber-200 bg-amber-50 text-amber-800",
-  REQUIERE_CORRECCION: "border-orange-200 bg-orange-50 text-orange-800",
-  PENDIENTE_FIRMA: "border-blue-200 bg-blue-50 text-blue-800",
-  EN_SEGUIMIENTO: "border-purple-200 bg-purple-50 text-purple-800",
+  BORRADOR: "border-slate-200 bg-slate-100 text-slate-700",
+  CREADO: "border-sky-200 bg-sky-50 text-sky-800",
+  EN_REVISION_CALIDAD: "border-amber-200 bg-amber-50 text-amber-800",
+  DEVUELTO_LIDER: "border-orange-200 bg-orange-50 text-orange-800",
+  PENDIENTE_APROBACION: "border-blue-200 bg-blue-50 text-blue-800",
+  RECHAZADO_APROBADOR: "border-red-200 bg-red-50 text-red-800",
+  APROBADO_APROBADOR: "border-indigo-200 bg-indigo-50 text-indigo-800",
+  EN_SEGUIMIENTO_CALIDAD: "border-purple-200 bg-purple-50 text-purple-800",
   CERRADO: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  VENCIDO: "border-red-300 bg-red-50 text-red-900",
 };
 
 const approvalStatesByRole: Record<GestionCambioRol, GestionCambioEstado[]> = {
-  GESTION_CALIDAD: ["EN_REVISION", "EN_SEGUIMIENTO"],
-  LIDER_PROCESO: ["REQUIERE_CORRECCION"],
-  GERENCIA_ADMINISTRATIVA: ["PENDIENTE_FIRMA"],
+  GESTION_CALIDAD: ["EN_REVISION_CALIDAD", "APROBADO_APROBADOR", "EN_SEGUIMIENTO_CALIDAD", "VENCIDO"],
+  LIDER_PROCESO: ["BORRADOR", "CREADO", "DEVUELTO_LIDER", "RECHAZADO_APROBADOR"],
+  GERENCIA_ADMINISTRATIVA: ["PENDIENTE_APROBACION"],
+  APROBADOR_ADICIONAL: ["PENDIENTE_APROBACION"],
 };
+
+function getVisibleStatesForCreation(usuario?: UsuarioGestionCambio) {
+  if (!usuario) return [];
+  if (usuario.rol === "LIDER_PROCESO") return ["BORRADOR", "CREADO", "DEVUELTO_LIDER"];
+  return ["BORRADOR", "CREADO"];
+}
 
 export function canAccessApproval(usuario?: UsuarioGestionCambio) {
   return Boolean(usuario && usuario.activo && approvalStatesByRole[usuario.rol]);
 }
 
 export function canEditCorrection(registro: GestionCambio, usuario?: UsuarioGestionCambio) {
-  return Boolean(usuario && registro.estado === "REQUIERE_CORRECCION" && registro.responsableActual === "LIDER_PROCESO" && registro.liderProcesoId === usuario.id);
+  return Boolean(
+    usuario &&
+      (registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR") &&
+      registro.responsableActual === "LIDER_PROCESO" &&
+      (registro.liderProcesoId === usuario.id || registro.creadorId === usuario.id),
+  );
 }
 
 export function filterRegistrosForCreation(registros: GestionCambio[], usuario?: UsuarioGestionCambio) {
   if (!usuario) return [];
-  return registros.filter((registro) => registro.creadorId === usuario.id);
+  const visibleStates = getVisibleStatesForCreation(usuario);
+
+  return registros.filter((registro) => {
+    if (registro.empresa !== usuario.empresa) return false;
+    if (!visibleStates.includes(registro.estado)) return false;
+    if (registro.creadorId === usuario.id || registro.liderProcesoId === usuario.id) return true;
+    return Boolean(usuario.proceso && registro.proceso === usuario.proceso);
+  });
 }
 
 export function filterRegistrosForApproval(registros: GestionCambio[], usuario?: UsuarioGestionCambio) {
@@ -48,6 +78,11 @@ export function filterRegistrosForApproval(registros: GestionCambio[], usuario?:
   return registros.filter((registro) => {
     if (registro.empresa !== usuario.empresa) return false;
     if (!allowedStates.includes(registro.estado)) return false;
+
+    if (usuario.rol === "GERENCIA_ADMINISTRATIVA" || usuario.rol === "APROBADOR_ADICIONAL") {
+      return registro.responsableActualId === usuario.id || (!registro.responsableActualId && registro.responsableActual === usuario.rol);
+    }
+
     if (registro.responsableActual !== usuario.rol) return false;
     if (usuario.rol === "LIDER_PROCESO") return registro.liderProcesoId === usuario.id || registro.proceso === usuario.proceso;
     return true;
@@ -65,9 +100,41 @@ export function filterRegistrosForApprovalHistory(registros: GestionCambio[], us
     }
 
     if (usuario.rol === "GERENCIA_ADMINISTRATIVA") {
-      return registro.historial.some((decision) => decision.accion === "REGISTRAR_FIRMA" && decision.usuario === usuario.nombre);
+      return registro.historial.some((decision) => (decision.accion === "REGISTRAR_APROBACION" || decision.accion === "REGISTRAR_RECHAZO") && decision.usuario === usuario.nombre);
+    }
+
+    if (usuario.rol === "APROBADOR_ADICIONAL") {
+      return registro.historial.some((decision) => (decision.accion === "REGISTRAR_APROBACION" || decision.accion === "REGISTRAR_RECHAZO") && decision.usuario === usuario.nombre);
     }
 
     return registro.historial.some((decision) => decision.accion === "REENVIAR_CALIDAD" && decision.usuario === usuario.nombre);
   });
+}
+
+export function addMonths(dateValue: string, months: number) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
+export function getDiasRestantes(fechaLimite?: string) {
+  if (!fechaLimite) return null;
+  const today = new Date();
+  const limit = new Date(`${fechaLimite}T00:00:00`);
+  today.setHours(0, 0, 0, 0);
+  return Math.ceil((limit.getTime() - today.getTime()) / 86400000);
+}
+
+export function getEstadoCierre(registro: GestionCambio) {
+  if (registro.estado === "CERRADO") return "Cerrado";
+  const dias = getDiasRestantes(registro.fechaLimiteCierre);
+  if (dias === null) return "Sin fecha de seguimiento";
+  if (dias < 0) return "Vencido";
+  if (dias <= 15) return "Próximo a vencerse";
+  return "En tiempo";
+}
+
+export function getEffectiveEstado(registro: GestionCambio): GestionCambioEstado {
+  if (registro.estado === "CERRADO") return registro.estado;
+  return getEstadoCierre(registro) === "Vencido" ? "VENCIDO" : registro.estado;
 }

@@ -43,30 +43,116 @@ export const detalleSolicitudFields = [
 ] as const;
 
 export const analisisFields = [
-  { id: "documentos", label: "DOCUMENTOS", type: "textarea", placeholder: "Descripción de impactos en documentos..." },
-  { id: "procesos", label: "PROCESOS", type: "textarea", placeholder: "Descripción de impactos en procesos..." },
-  { id: "personas", label: "PERSONAS", type: "textarea", placeholder: "Descripción de impactos en personal..." },
-  { id: "instalaciones", label: "INSTALACIONES", type: "textarea", placeholder: "Descripción de impactos en infraestructura..." },
-  { id: "tecnologia-maquinaria", label: "TECNOLOGIA / MAQUINARIA", type: "textarea", placeholder: "Descripción de impactos técnicos..." },
+  {
+     id: "documentos", 
+     label: "DOCUMENTOS",
+     type: "select",
+     placeholder: "Seleccione una opción...",
+   },
+
+  { 
+    id: "procesos",
+    label: "PROCESOS",
+    type: "select",
+    placeholder: "Seleccione una opción...",
+    },
+
+  { id: "personas",
+    label: "PERSONAS",
+    type: "select",
+    placeholder: "Seleccione una opción...",
+   },
+
+  { id: "instalaciones",
+    label: "INSTALACIONES",
+    type: "select",
+    placeholder: "Seleccione una opción..." 
+  },
+
+  { id: "tecnologia-maquinaria",
+    label: "TECNOLOGIA / MAQUINARIA",
+    type: "select",
+    placeholder: "Seleccione una opción..." },
   {
     id: "riesgos-organizacionales",
     label: "RIESGOS ORGANIZACIONALES",
-    type: "textarea",
+    type: "select",
     placeholder: "Identificación de riesgos del negocio...",
   },
   {
     id: "peligros-riesgos",
     label: "PELIGROS / RIESGOS (SST)",
-    type: "textarea",
+    type: "select",
     placeholder: "Análisis de seguridad y salud en el trabajo...",
   },
   {
     id: "aspectos-impactos-ambientales",
     label: "ASPECTOS / IMPACTOS AMBIENTALES",
-    type: "textarea",
+    type: "select",
     placeholder: "Análisis de impacto ambiental...",
   },
 ] as const;
+
+export const analisisOptions = {
+  documentos: [
+    "Se debe crear o actualizar documentación",
+    "Afecta la estructura organizacional",
+    "Afecta el Plan de Emergencias",
+    "Afecta la descripción de cargo / rol establecidos",
+    "OTRO",
+  ],
+
+  procesos: [
+    "Incluye creación de nuevos o modificación en procesos",
+    "Afecta en el proceso de inducción",
+    "Afecta el alcance del Sistema de gestión",
+    "Requiere de nuevos controles operacionales",
+    "OTRO",
+  ],
+
+  personas: [
+    "Se debe contratar personal",
+    "Cambia el modelo de contratación",
+    "Se modifican funciones / responsabilidades / autoridad",
+    "Se modifica el Programa de Capacitación",
+    "OTRO",
+  ],
+
+  instalaciones: [
+    "Remodelación de instalaciones existentes",
+    "Nuevas instalaciones",
+    "Requiere licenciamiento",
+    "Incluye instalación de servicios públicos",
+    "OTRO",
+  ],
+
+  "tecnologia-maquinaria": [
+    "Incluye nueva tecnología",
+    "Se va a realizar una prueba piloto antes de implementación plena",
+    "OTRO",
+  ],
+
+  "riesgos-organizacionales": [
+    "Se generaron nuevos o modifican riesgos y oportunidades de sistema de gestión",
+    "OTRO",
+  ],
+
+  "peligros-riesgos": [
+    "Nuevos peligros",
+    "Se debe implementar nuevos controles",
+    "Continúa el mismo peligro pero cambia la valoración del nivel de riesgo",
+    "Afecta los controles existentes",
+    "OTRO",
+  ],
+
+  "aspectos-impactos-ambientales": [
+    "Estaba contemplada la actividad con sus aspectos / impactos",
+    "Se debe implementar nuevos controles",
+    "Continúa el mismo aspecto pero cambia la valoración del nivel de impacto",
+    "Afecta los controles existentes",
+    "OTRO",
+  ],
+} as const;
 
 export const planFields = [
   { id: "actividades", label: "ACTIVIDADES", type: "text", placeholder: "Describa la actividad..." },

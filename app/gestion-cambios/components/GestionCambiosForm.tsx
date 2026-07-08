@@ -7,6 +7,7 @@ import { CustomInput } from "./CustomInput";
 import { SectionWrapper } from "./SectionWrapper";
 import {
   analisisFields,
+  analisisOptions,
   planFields,
   procesoOptions,
   solicitudFields,
@@ -263,6 +264,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, respon
                 type={field.type}
                 placeholder={field.placeholder}
                 icon={analisisIcons[field.id]}
+                options={analisisOptions[field.id as keyof typeof analisisOptions] ?? []}
                 value={analisisValues[field.id] ?? ""}
                 onChange={(value) => updateAnalisisValue(field.id, value)}
               />

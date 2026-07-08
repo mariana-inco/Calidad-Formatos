@@ -33,7 +33,7 @@ export const estadoBadgeClassName: Record<GestionCambioEstado, string> = {
 
 const approvalStatesByRole: Record<GestionCambioRol, GestionCambioEstado[]> = {
   GESTION_CALIDAD: ["EN_REVISION_CALIDAD", "EN_SEGUIMIENTO_CALIDAD", "VENCIDO"],
-  LIDER_PROCESO: ["BORRADOR", "CREADO", "DEVUELTO_LIDER", "RECHAZADO_APROBADOR"],
+  LIDER_PROCESO: ["BORRADOR", "DEVUELTO_LIDER", "RECHAZADO_APROBADOR", "CERRADO"],
   GERENCIA_ADMINISTRATIVA: ["PENDIENTE_APROBACION"],
   APROBADOR_ADICIONAL: ["PENDIENTE_APROBACION"],
 };
@@ -68,8 +68,7 @@ export function filterRegistrosForCreation(registros: GestionCambio[], usuario?:
 
   return registros.filter((registro) => {
     if (registro.empresa !== usuario.empresa) return false;
-    if (registro.creadorId === usuario.id || registro.liderProcesoId === usuario.id) return true;
-    return Boolean(usuario.proceso && registro.proceso === usuario.proceso);
+    return registro.creadorId === usuario.id || registro.liderProcesoId === usuario.id;
   });
 }
 
@@ -91,7 +90,9 @@ export function filterRegistrosForApproval(registros: GestionCambio[], usuario?:
     }
 
     if (registro.responsableActual !== usuario.rol) return false;
-    if (usuario.rol === "LIDER_PROCESO") return registro.liderProcesoId === usuario.id || registro.proceso === usuario.proceso;
+    if (usuario.rol === "LIDER_PROCESO") {
+      return registro.creadorId === usuario.id || registro.liderProcesoId === usuario.id || registro.proceso === usuario.proceso;
+    }
     return true;
   });
 }
@@ -99,22 +100,41 @@ export function filterRegistrosForApproval(registros: GestionCambio[], usuario?:
 export function filterRegistrosForApprovalHistory(registros: GestionCambio[], usuario?: UsuarioGestionCambio) {
   if (!usuario || !canAccessApproval(usuario)) return [];
 
+  const belongsToUser = (userId?: string, userName?: string) =>
+    userId ? userId === usuario.id : userName === usuario.nombre;
+
   return registros.filter((registro) => {
     if (registro.empresa !== usuario.empresa) return false;
 
     if (usuario.rol === "GESTION_CALIDAD") {
-      return registro.historial.some((decision) => decision.accion === "VALIDAR_REMITIR" && decision.usuario === usuario.nombre);
+      return registro.historial.some(
+        (decision) =>
+          (decision.accion === "SOLICITAR_CORRECCION" ||
+            decision.accion === "VALIDAR_REMITIR" ||
+            decision.accion === "CERRAR_FORMATO") &&
+          belongsToUser(decision.usuarioId, decision.usuario),
+      );
     }
 
     if (usuario.rol === "GERENCIA_ADMINISTRATIVA") {
-      return registro.historial.some((decision) => (decision.accion === "REGISTRAR_APROBACION" || decision.accion === "REGISTRAR_RECHAZO") && decision.usuario === usuario.nombre);
+      return registro.historial.some(
+        (decision) =>
+          (decision.accion === "REGISTRAR_APROBACION" || decision.accion === "REGISTRAR_RECHAZO") &&
+          belongsToUser(decision.usuarioId, decision.usuario),
+      );
     }
 
     if (usuario.rol === "APROBADOR_ADICIONAL") {
-      return registro.historial.some((decision) => (decision.accion === "REGISTRAR_APROBACION" || decision.accion === "REGISTRAR_RECHAZO") && decision.usuario === usuario.nombre);
+      return registro.historial.some(
+        (decision) =>
+          (decision.accion === "REGISTRAR_APROBACION" || decision.accion === "REGISTRAR_RECHAZO") &&
+          belongsToUser(decision.usuarioId, decision.usuario),
+      );
     }
 
-    return registro.historial.some((decision) => decision.accion === "REENVIAR_CALIDAD" && decision.usuario === usuario.nombre);
+    return registro.historial.some(
+      (decision) => decision.accion === "REENVIAR_CALIDAD" && belongsToUser(decision.usuarioId, decision.usuario),
+    );
   });
 }
 

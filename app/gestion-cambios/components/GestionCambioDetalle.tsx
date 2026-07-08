@@ -1,11 +1,12 @@
 "use client";
 
-import { CalendarDays, FilePenLine, PlusCircle, UserCheck, Workflow } from "lucide-react";
+import { CalendarDays, Download, FilePenLine, PlusCircle, UserCheck, Workflow } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
 import { analisisFields } from "./formData";
+import { SignaturePad } from "./SignaturePad";
 import type { AprobacionCambioData, GestionCambio, GestionCambioWorkflowAction, SeguimientoCambioData, UsuarioGestionCambio } from "./types";
 import {
-  canEditCorrection,
   estadoBadgeClassName,
   estadoLabels,
   getDiasRestantes,
@@ -19,6 +20,7 @@ import {
 export type WorkflowPayload = {
   observacionesCorreccion?: string;
   validacionCalidad?: string;
+  aprobadorSeleccionadoId?: string;
   aprobacion?: AprobacionCambioData;
   seguimiento?: SeguimientoCambioData;
 };
@@ -27,6 +29,7 @@ type GestionCambioDetalleProps = {
   registro: GestionCambio;
   showApprovalActions?: boolean;
   usuarioActual?: UsuarioGestionCambio;
+  responsablesAprobacion?: UsuarioGestionCambio[];
   onEdit?: () => void;
   onWorkflowAction?: (action: GestionCambioWorkflowAction, payload?: WorkflowPayload) => void;
 };
@@ -36,13 +39,21 @@ const inputClassName =
 
 const actionLabels: Record<GestionCambioWorkflowAction, string> = {
   CREAR_REGISTRO: "Líder identifica el cambio",
-  COMPLETAR_SOLICITUD: "Diligencia SIG-F006 y define plan",
+  GUARDAR_BORRADOR: "Guarda borrador",
+  ENVIAR_CALIDAD: "Envía a Calidad",
   REENVIAR_CALIDAD: "Envía a revisión de Calidad",
   SOLICITAR_CORRECCION: "Calidad devuelve al líder",
   VALIDAR_REMITIR: "Calidad valida y remite a aprobación",
   REGISTRAR_APROBACION: "Responsable aprueba el cambio",
   REGISTRAR_RECHAZO: "Responsable rechaza el cambio",
   CERRAR_FORMATO: "Calidad cierra el formato",
+};
+
+const companyHeaders: Record<GestionCambio["empresa"], { logo: string; nombre: string; nit: string }> = {
+  Dromos: { logo: "DR", nombre: "Dromos", nit: "Config local ROCA pendiente" },
+  Incominería: { logo: "IN", nombre: "Incominería", nit: "Config local ROCA pendiente" },
+  Ingestrac: { logo: "IG", nombre: "Ingestrac", nit: "Config local ROCA pendiente" },
+  Drominc: { logo: "DM", nombre: "Drominc", nit: "Config local ROCA pendiente" },
 };
 
 function formatTimelineDate(value: string) {
@@ -87,6 +98,7 @@ export function GestionCambioDetalle({
   registro,
   showApprovalActions = false,
   usuarioActual,
+  responsablesAprobacion = [],
   onEdit,
   onWorkflowAction,
 }: GestionCambioDetalleProps) {
@@ -99,6 +111,7 @@ export function GestionCambioDetalle({
       cargo: roleLabels[usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA"],
       fecha: new Date().toISOString().slice(0, 10),
       observaciones: "",
+      firma: "",
       rolAprobador: usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA",
     },
   );
@@ -114,6 +127,7 @@ export function GestionCambioDetalle({
     },
   );
   const [seguimientoAgregado, setSeguimientoAgregado] = useState(Boolean(registro.seguimiento));
+  const [aprobadorSeleccionadoId, setAprobadorSeleccionadoId] = useState(registro.aprobadorSeleccionadoId ?? responsablesAprobacion[0]?.id ?? "");
   const [error, setError] = useState("");
 
   const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD" && !hasQualityInitialReview(registro);
@@ -125,7 +139,7 @@ export function GestionCambioDetalle({
     (registro.responsableActualId === usuarioActual.id || (!registro.responsableActualId && registro.responsableActual === usuarioActual.rol));
   const canReenterQuality = Boolean(
     usuarioActual &&
-      (registro.estado === "CREADO" || registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR") &&
+      (registro.estado === "BORRADOR" || registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR") &&
       (registro.creadorId === usuarioActual.id || registro.liderProcesoId === usuarioActual.id),
   );
   const estadoActual = getEffectiveEstado(registro);
@@ -148,12 +162,16 @@ export function GestionCambioDetalle({
       requestLeaderCorrection();
       return;
     }
+    if (!requireText(aprobadorSeleccionadoId, "Seleccione a quién enviar para aprobación.")) return;
+
+    const aprobador = responsablesAprobacion.find((responsable) => responsable.id === aprobadorSeleccionadoId);
 
     setError("");
     onWorkflowAction?.("VALIDAR_REMITIR", {
+      aprobadorSeleccionadoId,
       validacionCalidad: observacionesCorreccion.trim()
-        ? `Calidad aprueba la revisión inicial. Observaciones: ${observacionesCorreccion.trim()}`
-        : "Calidad aprueba la revisión inicial y confirma que el cambio está correctamente documentado.",
+        ? `Calidad aprueba la revisión inicial y remite a ${aprobador?.nombre ?? "el aprobador seleccionado"}. Observaciones: ${observacionesCorreccion.trim()}`
+        : `Calidad aprueba la revisión inicial y remite a ${aprobador?.nombre ?? "el aprobador seleccionado"}.`,
     });
   };
 
@@ -162,6 +180,7 @@ export function GestionCambioDetalle({
     if (!requireText(aprobacion.cargo, "El cargo del aprobador es obligatorio.")) return;
     if (!requireText(aprobacion.fecha, "La fecha de aprobación es obligatoria.")) return;
     if (!requireText(aprobacion.observaciones, "Las observaciones de aprobación son obligatorias.")) return;
+    if (!requireText(aprobacion.firma ?? "", "La firma del aprobador es obligatoria.")) return;
     setError("");
     onWorkflowAction?.(aprobacion.aprobado === "SI" ? "REGISTRAR_APROBACION" : "REGISTRAR_RECHAZO", { aprobacion });
   };
@@ -192,12 +211,94 @@ export function GestionCambioDetalle({
     onWorkflowAction?.("CERRAR_FORMATO", { seguimiento });
   };
 
+  const exportPdf = () => {
+    const header = companyHeaders[registro.empresa];
+    const rows = registro.historial
+      .map(
+        (evento, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${actionLabels[evento.accion]}</td>
+            <td>${evento.estadoAnterior ? estadoLabels[evento.estadoAnterior] : ""}</td>
+            <td>${evento.estadoNuevo ? estadoLabels[evento.estadoNuevo] : ""}</td>
+            <td>${evento.usuario}${evento.cargo ? ` - ${evento.cargo}` : ""}</td>
+            <td>${formatTimelineDate(evento.fecha)}</td>
+            <td>${evento.observaciones ?? ""}${evento.aprobadorSeleccionadoNombre ? ` Aprobador: ${evento.aprobadorSeleccionadoNombre}` : ""}</td>
+          </tr>`,
+      )
+      .join("");
+    const printWindow = window.open("", "_blank", "width=1100,height=800");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>${registro.codigo} - SIG-F006</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #0f172a; margin: 28px; }
+            header { display: grid; grid-template-columns: 86px 1fr 180px; gap: 14px; align-items: center; border: 1px solid #94a3b8; padding: 12px; }
+            .logo { display: grid; place-items: center; width: 70px; height: 70px; border-radius: 8px; background: #064e3b; color: white; font-weight: 800; font-size: 24px; }
+            h1 { margin: 0; font-size: 18px; text-align: center; }
+            h2 { margin: 24px 0 8px; font-size: 14px; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
+            .meta { font-size: 12px; line-height: 1.5; }
+            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .box { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; min-height: 32px; }
+            .label { display: block; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 4px; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            th, td { border: 1px solid #cbd5e1; padding: 6px; vertical-align: top; }
+            th { background: #ecfdf5; text-transform: uppercase; font-size: 10px; }
+            @media print { button { display: none; } body { margin: 14mm; } }
+          </style>
+        </head>
+        <body>
+          <button onclick="window.print()">Imprimir / guardar PDF</button>
+          <header>
+            <div class="logo">${header.logo}</div>
+            <div>
+              <h1>GESTIÓN DEL CAMBIO SIG-F006</h1>
+              <p class="meta">${header.nombre} | ${header.nit}</p>
+            </div>
+            <div class="meta"><strong>Código:</strong> ${registro.codigo}<br/><strong>Estado:</strong> ${estadoLabels[getEffectiveEstado(registro)]}</div>
+          </header>
+          <h2>Datos generales</h2>
+          <div class="grid">
+            <div class="box"><span class="label">Empresa</span>${registro.empresa}</div>
+            <div class="box"><span class="label">Proceso</span>${registro.proceso}</div>
+            <div class="box"><span class="label">Creador</span>${registro.creadorNombre ?? registro.creadorId}</div>
+            <div class="box"><span class="label">Líder del proceso</span>${registro.liderProceso}</div>
+            <div class="box"><span class="label">Tipo de cambio</span>${registro.tipoCambio}</div>
+            <div class="box"><span class="label">Responsable actual</span>${registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</div>
+          </div>
+          <h2>Análisis asociado al cambio</h2>
+          <div class="grid">${analisisFields.map((field) => `<div class="box"><span class="label">${field.label}</span>${registro.detalle.analisis[field.id] ?? ""}</div>`).join("")}</div>
+          <h2>Plan de implementación</h2>
+          <table><thead><tr><th>Actividad</th><th>Responsable</th><th>Fecha oficial</th></tr></thead><tbody>${registro.detalle.plan
+            .map((plan) => `<tr><td>${plan.actividades}</td><td>${plan.responsable}</td><td>${plan.fecha}</td></tr>`)
+            .join("")}</tbody></table>
+          <h2>Validación, aprobación y seguimiento</h2>
+          <div class="grid">
+            <div class="box"><span class="label">Validación de Calidad</span>${registro.validacionCalidad ?? ""}</div>
+            <div class="box"><span class="label">Aprobación</span>${registro.aprobacion ? `${registro.aprobacion.aprobado} - ${registro.aprobacion.nombre} - ${registro.aprobacion.observaciones}${registro.aprobacion.firma ? `<br/><img src="${registro.aprobacion.firma}" alt="Firma aprobador" style="max-width:220px;max-height:70px;margin-top:8px" />` : ""}` : ""}</div>
+            <div class="box"><span class="label">Seguimiento de eficacia</span>${registro.seguimiento ? `${registro.seguimiento.cambioEficaz} - ${registro.seguimiento.observaciones} ${registro.seguimiento.acciones}` : ""}</div>
+            <div class="box"><span class="label">Estado final / fecha cierre</span>${estadoLabels[getEffectiveEstado(registro)]} ${registro.fechaCierre ?? ""}</div>
+          </div>
+          <h2>Historial de trazabilidad</h2>
+          <table><thead><tr><th>#</th><th>Acción</th><th>De</th><th>A</th><th>Usuario</th><th>Fecha/hora oficial</th><th>Observación</th></tr></thead><tbody>${rows}</tbody></table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
   const renderRevisionCalidad = () => (
     <div className="space-y-4">
       <div>
         <h3 className="text-base font-black text-slate-950">Revisión inicial de Calidad</h3>
         <p className="mt-1 text-sm leading-6 text-slate-600">
-          Si el cambio está documentado, se remite a {registro.aprobadorSeleccionadoNombre ?? "el responsable seleccionado"}. Si falta información, vuelve al líder con observaciones.
+          Si el cambio está documentado, Calidad selecciona el aprobador y remite el registro. Si falta información, vuelve al líder con observaciones.
         </p>
       </div>
 
@@ -236,10 +337,29 @@ export function GestionCambioDetalle({
             placeholder={calidadAprueba === "SI" ? "Registra observaciones de la revisión inicial." : "Indica qué debe corregir el líder de proceso."}
           />
         </label>
+
+        {calidadAprueba === "SI" ? (
+          <label className="block border-t border-slate-300 px-4 py-4">
+            <span className="text-xs font-black uppercase tracking-wide text-slate-600">Enviar para aprobación a</span>
+            <select
+              value={aprobadorSeleccionadoId}
+              onChange={(event) => setAprobadorSeleccionadoId(event.target.value)}
+              className={`${inputClassName} bg-white`}
+            >
+              <option value="">Seleccione responsable configurado</option>
+              {responsablesAprobacion.map((responsable) => (
+                <option key={responsable.id} value={responsable.id}>
+                  {responsable.nombre} - {roleLabels[responsable.rol]}
+                  {responsable.proceso ? ` - ${responsable.proceso}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       <div className="flex justify-end">
-        <PrimaryButton onClick={saveQualityReview}>{calidadAprueba === "SI" ? "Remitir a aprobador" : "Devolver al líder"}</PrimaryButton>
+        <PrimaryButton onClick={saveQualityReview}>{calidadAprueba === "SI" ? "Validar y remitir a aprobación" : "Solicitar corrección"}</PrimaryButton>
       </div>
     </div>
   );
@@ -301,6 +421,8 @@ export function GestionCambioDetalle({
         <span className="text-xs font-black uppercase tracking-wide text-slate-600">Observaciones de aprobación</span>
         <textarea value={aprobacion.observaciones} onChange={(event) => setAprobacion((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-20`} placeholder="Registra las observaciones de la aprobación o rechazo." />
       </label>
+
+      <SignaturePad value={aprobacion.firma} onChange={(firma) => setAprobacion((current) => ({ ...current, firma }))} />
 
       <div className="flex justify-end">
         <PrimaryButton onClick={registerApprovalDecision}>{aprobacion.aprobado === "SI" ? "Aprobar cambio" : "Rechazar cambio"}</PrimaryButton>
@@ -402,6 +524,16 @@ export function GestionCambioDetalle({
 
   return (
     <div className="space-y-6 text-slate-950">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={exportPdf}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800"
+        >
+          <Download className="size-4" />
+          Exportar PDF
+        </button>
+      </div>
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <DetailItem label="Código" value={registro.codigo} />
@@ -409,7 +541,8 @@ export function GestionCambioDetalle({
           <DetailItem label="Empresa" value={registro.empresa} />
           <DetailItem label="Estado actual" value={<span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[estadoActual]}`}>{estadoLabels[estadoActual]}</span>} />
           <DetailItem label="Responsable actual" value={registro.responsableActualNombre ?? roleLabels[registro.responsableActual]} />
-          <DetailItem label="Líder de proceso" value={registro.detalle.liderProceso} />
+          <DetailItem label="Creador" value={registro.creadorNombre ?? registro.creadorId} />
+          <DetailItem label="Líder de proceso" value={registro.liderProceso} />
           <DetailItem label="Proceso" value={registro.detalle.proceso} />
           <DetailItem label="Tipo de cambio" value={registro.tipoCambio} />
           <DetailItem label="Aprobador seleccionado" value={registro.aprobadorSeleccionadoNombre} />
@@ -419,6 +552,20 @@ export function GestionCambioDetalle({
           <DetailItem label="Estado del cierre" value={getEstadoCierre(registro)} />
         </div>
       </section>
+
+      {registro.aprobacion?.firma ? (
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-base font-black text-slate-950">Firma de aprobación guardada</h3>
+          <Image
+            src={registro.aprobacion.firma}
+            alt={`Firma de ${registro.aprobacion.nombre}`}
+            width={760}
+            height={180}
+            unoptimized
+            className="mt-4 h-24 w-auto max-w-full object-contain object-left"
+          />
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-black text-slate-950">Análisis asociados al cambio</h3>
@@ -470,7 +617,7 @@ export function GestionCambioDetalle({
                     <button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800">
                       Editar formato
                     </button>
-                    <PrimaryButton onClick={() => onWorkflowAction?.("REENVIAR_CALIDAD")}>{registro.estado === "CREADO" ? "Enviar a Calidad" : "Reenviar a Calidad"}</PrimaryButton>
+                    <PrimaryButton onClick={() => onWorkflowAction?.("REENVIAR_CALIDAD")}>{registro.estado === "BORRADOR" ? "Enviar a Calidad" : "Reenviar a Calidad"}</PrimaryButton>
                   </div>
                 </div>
               ) : null}

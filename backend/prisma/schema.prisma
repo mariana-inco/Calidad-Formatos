@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  company   String
+  role      String
+  process   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([email, company, role])
+  @@index([company, role, active])
+  @@map("users")
+}
+
+model AppCounter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("app_counters")
+}
+
+model ChangeRequest {
+  id                     String   @id @default(cuid())
+  code                   String   @unique
+  company                String
+  process                String
+  leaderUserId           String?
+  leaderName             String
+  creatorUserId          String
+  creatorName            String
+  currentState           String   @default("BORRADOR")
+  currentResponsibleRole String
+  currentResponsibleId   String?
+  currentResponsibleName String?
+  selectedApproverId     String?
+  selectedApproverName   String?
+  selectedApproverRole   String?
+  changeTypes            String
+  analysis               String
+  implementationPlan     String
+  qualityValidation      String?
+  correctionNotes        String?
+  approvedAt             DateTime?
+  followupStartedAt      DateTime?
+  closeDueAt             DateTime?
+  closedAt               DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  approvals ChangeApproval[]
+  followups ChangeFollowup[]
+  history   ChangeHistory[]
+
+  @@index([company])
+  @@index([process])
+  @@index([creatorUserId])
+  @@index([leaderUserId])
+  @@index([currentState])
+  @@index([currentResponsibleRole, currentResponsibleId])
+  @@map("change_requests")
+}
+
+model ChangeApproval {
+  id              String   @id @default(cuid())
+  changeRequestId String
+  approverUserId  String?
+  approverName    String
+  approverRole    String
+  approved        Boolean
+  position        String?
+  observations    String?
+  signature       String?
+  approvedAt      DateTime
+  createdAt       DateTime @default(now())
+
+  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  @@index([changeRequestId])
+  @@index([approverUserId])
+  @@map("change_approvals")
+}
+
+model ChangeFollowup {
+  id                String   @id @default(cuid())
+  changeRequestId   String
+  responsibleUserId String?
+  responsibleName   String
+  effective         Boolean
+  observations      String?
+  actions           String?
+  position          String?
+  followupAt        DateTime
+  closedAt          DateTime
+  createdAt         DateTime @default(now())
+
+  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  @@index([changeRequestId])
+  @@index([responsibleUserId])
+  @@map("change_followups")
+}
+
+model ChangeHistory {
+  id                       String   @id @default(cuid())
+  changeRequestId          String
+  fromState                String?
+  toState                  String
+  action                   String
+  userId                   String?
+  userName                 String
+  role                     String?
+  position                 String?
+  observation              String?
+  selectedApproverId       String?
+  selectedApproverName     String?
+  createdAt                DateTime @default(now())
+
+  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  @@index([changeRequestId])
+  @@index([createdAt])
+  @@map("change_history")
+}

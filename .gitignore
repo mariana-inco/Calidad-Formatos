@@ -23,6 +23,10 @@
 # production
 /build
 
+# local database
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
 # misc
 .DS_Store
 *.pem

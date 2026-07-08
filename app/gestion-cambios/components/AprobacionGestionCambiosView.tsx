@@ -73,9 +73,7 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
   }
 
   const registrosAsignados = filterRegistrosForApproval(registros, usuarioActual);
-  const registrosHistorial = filterRegistrosForApprovalHistory(registros, usuarioActual).filter(
-    (registro) => !registrosAsignados.some((pendiente) => pendiente.id === registro.id),
-  );
+  const registrosHistorial = filterRegistrosForApprovalHistory(registros, usuarioActual);
 
   const pendientesRevision = registrosAsignados.filter((registro) => registro.estado === "EN_REVISION_CALIDAD" && !hasQualityInitialReview(registro));
   const devueltos = registros.filter(
@@ -90,7 +88,6 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
     const dias = getDiasRestantes(registro.fechaLimiteCierre);
     return dias !== null && dias <= 15;
   });
-  const cerrados = registros.filter((registro) => usuarioActual?.rol === "GESTION_CALIDAD" && registro.empresa === usuarioActual.empresa && registro.estado === "CERRADO");
   const pendientesAprobar = registrosAsignados.filter((registro) => registro.estado === "PENDIENTE_APROBACION" && !hasApproverDecision(registro, usuarioActual));
 
   return (
@@ -115,7 +112,14 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
           <ApprovalSection title="Devueltos o pendientes de ajuste" description="Registros que están en manos del líder o fueron rechazados por el aprobador." registros={devueltos} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
           <ApprovalSection title="Aprobados pendientes de seguimiento" description="Registros que ya aprobaron y deben cerrarse por Gestión de Calidad." registros={seguimiento} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
           <ApprovalSection title="Próximos a vencer" description="Registros con fecha límite de cierre vencida o dentro de los próximos 15 días." registros={proximos} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
-          <ApprovalSection title="Historial de registros cerrados" description="Registros cerrados por Gestión de Calidad." registros={cerrados} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+          <ApprovalSection
+            title="Historial de registros gestionados"
+            description="Todos los registros que revisaste, devolviste, remitiste o cerraste permanecen aquí con su estado y trazabilidad completa."
+            registros={registrosHistorial}
+            usuarioActual={usuarioActual}
+            onView={onView}
+            onEdit={onEdit}
+          />
         </>
       ) : usuarioActual?.rol === "GERENCIA_ADMINISTRATIVA" || usuarioActual?.rol === "APROBADOR_ADICIONAL" ? (
         <>

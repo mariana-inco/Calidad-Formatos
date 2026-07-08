@@ -13,7 +13,8 @@ export type GestionCambioRol = "GESTION_CALIDAD" | "GERENCIA_ADMINISTRATIVA" | "
 
 export type GestionCambioWorkflowAction =
   | "CREAR_REGISTRO"
-  | "COMPLETAR_SOLICITUD"
+  | "GUARDAR_BORRADOR"
+  | "ENVIAR_CALIDAD"
   | "SOLICITAR_CORRECCION"
   | "REENVIAR_CALIDAD"
   | "VALIDAR_REMITIR"
@@ -21,7 +22,7 @@ export type GestionCambioWorkflowAction =
   | "REGISTRAR_RECHAZO"
   | "CERRAR_FORMATO";
 
-export type GestionCambioEmpresa = "Incominería" | "Dromos";
+export type GestionCambioEmpresa = "Dromos" | "Incominería" | "Ingestrac" | "Drominc";
 
 export type UsuarioGestionCambio = {
   id: string;
@@ -64,11 +65,15 @@ export type SeguimientoCambioData = {
 export type GestionCambioDecision = {
   accion: GestionCambioWorkflowAction;
   fecha: string;
+  usuarioId?: string;
   usuario: string;
   rol?: GestionCambioRol;
+  cargo?: string;
   estadoAnterior?: GestionCambioEstado;
   estadoNuevo?: GestionCambioEstado;
   observaciones?: string;
+  aprobadorSeleccionadoId?: string;
+  aprobadorSeleccionadoNombre?: string;
 };
 
 export type AprobacionCambioData = {
@@ -77,6 +82,7 @@ export type AprobacionCambioData = {
   cargo: string;
   fecha: string;
   observaciones: string;
+  firma?: string;
   rolAprobador: GestionCambioRol;
 };
 
@@ -84,6 +90,7 @@ export type GestionCambio = {
   id: string;
   codigo: string;
   fecha: string;
+  fechaHora?: string;
   empresa: GestionCambioEmpresa;
   liderProceso: string;
   proceso: string;
@@ -93,6 +100,7 @@ export type GestionCambio = {
   responsableActualId?: string;
   responsableActualNombre?: string;
   creadorId: string;
+  creadorNombre?: string;
   liderProcesoId?: string;
   aprobadorSeleccionadoId?: string;
   aprobadorSeleccionadoNombre?: string;

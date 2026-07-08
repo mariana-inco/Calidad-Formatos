@@ -14,15 +14,13 @@ import {
   tipoCambioField,
   tipoCambioOptions,
 } from "./formData";
-import type { PlanActividad, SolicitudCambioData, UsuarioGestionCambio } from "./types";
-import { roleLabels } from "./workflow";
+import type { PlanActividad, SolicitudCambioData } from "./types";
 
 type SolicitudCambioFormProps = {
   formId?: string;
   empresaActiva: SolicitudCambioData["empresa"];
   initialData?: SolicitudCambioData;
-  responsablesAprobacion?: UsuarioGestionCambio[];
-  onSubmit?: (data: SolicitudCambioData) => void;
+  onSubmit?: (data: SolicitudCambioData, intent: "draft" | "send-quality") => void;
 };
 
 const emptyPlanForm = {
@@ -42,18 +40,31 @@ const analisisIcons: Record<string, React.ReactNode> = {
   "aspectos-impactos-ambientales": <Leaf className="size-3.5" />,
 };
 
-export function SolicitudCambioForm({ formId, empresaActiva, initialData, responsablesAprobacion = [], onSubmit }: SolicitudCambioFormProps) {
+const OTRO_OPTIONS = new Set(["OTRO", "OTROS"]);
+
+function splitOtherValue(value?: string) {
+  if (!value?.startsWith("OTRO - ") && !value?.startsWith("OTROS - ")) return { option: value ?? "", detail: "" };
+  const [option, ...detailParts] = value.split(" - ");
+  return { option, detail: detailParts.join(" - ") };
+}
+
+export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubmit }: SolicitudCambioFormProps) {
   const [solicitudValues, setSolicitudValues] = useState<Record<string, string>>(() => ({
     proceso: initialData?.proceso ?? "",
   }));
-  const [analisisValues, setAnalisisValues] = useState<Record<string, string>>(() => ({ ...(initialData?.analisis ?? {}) }));
+  const [analisisValues, setAnalisisValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(initialData?.analisis ?? {}).map(([key, value]) => [key, splitOtherValue(value).option])),
+  );
+  const [analisisOtrosValues, setAnalisisOtrosValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(initialData?.analisis ?? {}).map(([key, value]) => [key, splitOtherValue(value).detail])),
+  );
   const [tipoCambioSeleccionado, setTipoCambioSeleccionado] = useState("");
   const [cualTipoCambio, setCualTipoCambio] = useState("");
   const [tiposCambio, setTiposCambio] = useState<string[]>(() => initialData?.tiposCambio ?? []);
   const [planForm, setPlanForm] = useState(emptyPlanForm);
   const [planRows, setPlanRows] = useState<PlanActividad[]>(() => initialData?.plan ?? []);
-  const [aprobadorSeleccionadoId, setAprobadorSeleccionadoId] = useState(initialData?.aprobadorSeleccionadoId ?? responsablesAprobacion[0]?.id ?? "");
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [error, setError] = useState("");
   const isTipoCambioOtros = tipoCambioSeleccionado === "OTROS";
 
   const updateSolicitudValue = (fieldId: string, value: string) => {
@@ -62,14 +73,22 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, respon
 
   const updateAnalisisValue = (fieldId: string, value: string) => {
     setAnalisisValues((current) => ({ ...current, [fieldId]: value }));
+    if (!OTRO_OPTIONS.has(value)) {
+      setAnalisisOtrosValues((current) => ({ ...current, [fieldId]: "" }));
+    }
   };
 
   const agregarTipoCambio = () => {
     if (!tipoCambioSeleccionado) return;
+    if (isTipoCambioOtros && !cualTipoCambio.trim()) {
+      setError("Especifique cuál es el otro tipo de cambio.");
+      return;
+    }
 
     const tipoCambio = isTipoCambioOtros && cualTipoCambio.trim() ? `OTROS - ${cualTipoCambio.trim()}` : tipoCambioSeleccionado;
     if (tiposCambio.includes(tipoCambio)) return;
 
+    setError("");
     setTiposCambio((items) => [...items, tipoCambio]);
     setTipoCambioSeleccionado("");
     setCualTipoCambio("");
@@ -132,11 +151,32 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, respon
 
   const submitSolicitud = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const intent = submitter?.value === "send-quality" ? "send-quality" : "draft";
+
+    if (isTipoCambioOtros && !cualTipoCambio.trim()) {
+      setError("Especifique cuál es el otro tipo de cambio.");
+      return;
+    }
 
     const pendingTipoCambio = getPendingTipoCambio();
     const finalTiposCambio = pendingTipoCambio && !tiposCambio.includes(pendingTipoCambio) ? [...tiposCambio, pendingTipoCambio] : tiposCambio;
-    const analisis = Object.fromEntries(analisisFields.map((field) => [field.id, analisisValues[field.id] ?? ""]));
+    const missingOtherField = analisisFields.find((field) => OTRO_OPTIONS.has(analisisValues[field.id] ?? "") && !analisisOtrosValues[field.id]?.trim());
 
+    if (missingOtherField) {
+      setError(`Especifique cuál es el otro valor para ${missingOtherField.label}.`);
+      return;
+    }
+
+    const analisis = Object.fromEntries(
+      analisisFields.map((field) => {
+        const value = analisisValues[field.id] ?? "";
+        const detail = analisisOtrosValues[field.id]?.trim();
+        return [field.id, OTRO_OPTIONS.has(value) && detail ? `${value} - ${detail}` : value];
+      }),
+    );
+
+    setError("");
     onSubmit?.({
       empresa: empresaActiva,
       liderProceso: initialData?.liderProceso,
@@ -145,12 +185,13 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, respon
       tiposCambio: finalTiposCambio,
       analisis,
       plan: planRows,
-      aprobadorSeleccionadoId,
-    });
+    }, intent);
   };
 
   return (
     <form id={formId} onSubmit={submitSolicitud} className="space-y-9 text-slate-950">
+        {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
+
         <SectionWrapper title="1. SOLICITUD DEL CAMBIO" icon={<FilePenLine className="size-5" />}>
           <div className="space-y-7">
             <div className="grid items-start gap-6 md:grid-cols-[0.9fr_1.05fr_1.15fr]">
@@ -186,7 +227,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, respon
             {isTipoCambioOtros ? (
               <CustomInput
                 id="cual-tipo-cambio"
-                label="¿Cual?"
+                label="Especifique cuál"
                 type="text"
                 placeholder="Describa el tipo de cambio"
                 value={cualTipoCambio}
@@ -230,44 +271,34 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, respon
               </div>
             ) : null}
 
-            <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-              <label className="block">
-                <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Enviar para aprobación a</span>
-                <select
-                  value={aprobadorSeleccionadoId}
-                  onChange={(event) => setAprobadorSeleccionadoId(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-950 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                >
-                  <option value="">Seleccione responsable configurado</option>
-                  {responsablesAprobacion.map((responsable) => (
-                    <option key={responsable.id} value={responsable.id}>
-                      {responsable.nombre} - {roleLabels[responsable.rol]}
-                      {responsable.proceso ? ` - ${responsable.proceso}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="mt-2 text-xs font-semibold leading-5 text-blue-900">
-                Calidad revisa primero la documentación y, si está completa, remite el registro al responsable seleccionado.
-              </p>
-            </div>
           </div>
         </SectionWrapper>
 
         <SectionWrapper title="2. ANÁLISIS ASOCIADOS AL CAMBIO" icon={<ClipboardList className="size-5" />}>
           <div className="grid gap-x-9 gap-y-8 md:grid-cols-2">
             {analisisFields.map((field) => (
-              <CustomInput
-                key={field.id}
-                id={field.id}
-                label={field.label}
-                type={field.type}
-                placeholder={field.placeholder}
-                icon={analisisIcons[field.id]}
-                options={analisisOptions[field.id as keyof typeof analisisOptions] ?? []}
-                value={analisisValues[field.id] ?? ""}
-                onChange={(value) => updateAnalisisValue(field.id, value)}
-              />
+              <div key={field.id} className="space-y-3">
+                <CustomInput
+                  id={field.id}
+                  label={field.label}
+                  type={field.type}
+                  placeholder={field.placeholder}
+                  icon={analisisIcons[field.id]}
+                  options={analisisOptions[field.id as keyof typeof analisisOptions] ?? []}
+                  value={analisisValues[field.id] ?? ""}
+                  onChange={(value) => updateAnalisisValue(field.id, value)}
+                />
+                {OTRO_OPTIONS.has(analisisValues[field.id] ?? "") ? (
+                  <CustomInput
+                    id={`${field.id}-otro`}
+                    label="Especifique cuál"
+                    type="text"
+                    placeholder="Describa el otro valor"
+                    value={analisisOtrosValues[field.id] ?? ""}
+                    onChange={(value) => setAnalisisOtrosValues((current) => ({ ...current, [field.id]: value }))}
+                  />
+                ) : null}
+              </div>
             ))}
           </div>
         </SectionWrapper>
@@ -338,6 +369,25 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, respon
             ) : null}
           </div>
         </SectionWrapper>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-1 pt-5 sm:flex-row sm:justify-end">
+          <button
+            type="submit"
+            name="intent"
+            value="draft"
+            className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+          >
+            Guardar borrador
+          </button>
+          <button
+            type="submit"
+            name="intent"
+            value="send-quality"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-900"
+          >
+            Enviar a Calidad
+          </button>
+        </div>
     </form>
   );
 }

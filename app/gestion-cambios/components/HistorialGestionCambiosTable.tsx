@@ -56,6 +56,35 @@ function TableHeadLabel({ icon, children }: { icon: React.ReactNode; children: R
   );
 }
 
+function FechaHora({ registro }: { registro: GestionCambio }) {
+  if (!registro.fechaHora) return <>{registro.fecha}</>;
+
+  const date = new Date(registro.fechaHora);
+  if (Number.isNaN(date.getTime())) return <>{registro.fecha}</>;
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  const fecha = `${value("year")}-${value("month")}-${value("day")}`;
+  const hora = new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+
+  return (
+    <span className="block whitespace-nowrap">
+      <span className="block">{fecha}</span>
+      <span className="mt-1 block text-xs font-semibold text-slate-500">{hora}</span>
+    </span>
+  );
+}
+
 export function HistorialGestionCambiosTable({
   registros,
   emptyTitle = "No hay gestiones de cambio registradas",
@@ -98,7 +127,7 @@ export function HistorialGestionCambiosTable({
               return (
                 <tr key={registro.id} className="text-slate-800 transition hover:bg-blue-50/40">
                   <td className="px-5 py-5 font-black text-emerald-900">{registro.codigo}</td>
-                  <td className="px-5 py-5">{registro.fecha}</td>
+                  <td className="px-5 py-5"><FechaHora registro={registro} /></td>
                   <td className="px-5 py-5 font-bold text-slate-950">{registro.empresa}</td>
                   <td className="px-5 py-5 font-black uppercase text-slate-950">{registro.liderProceso}</td>
                   <td className="px-5 py-5">{registro.proceso}</td>
@@ -132,7 +161,10 @@ export function HistorialGestionCambiosTable({
                 <EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} />
               </div>
               <div className="mt-4 grid gap-2 text-sm text-slate-700">
-                <p><span className="font-bold text-slate-950">Fecha:</span> {registro.fecha}</p>
+                <div className="flex items-start gap-1">
+                  <span className="font-bold text-slate-950">Fecha:</span>
+                  <FechaHora registro={registro} />
+                </div>
                 <p><span className="font-bold text-slate-950">Empresa:</span> {registro.empresa}</p>
                 <p><span className="font-bold text-slate-950">Proceso:</span> {registro.proceso}</p>
                 <p><span className="font-bold text-slate-950">Tipo:</span> {registro.tipoCambio}</p>

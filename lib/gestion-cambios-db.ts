@@ -21,6 +21,54 @@ const roleLabels: Record<GestionCambioRol, string> = {
 const validRoles = new Set<GestionCambioRol>(Object.keys(roleLabels) as GestionCambioRol[]);
 const validCompanies = new Set(["Dromos", "Incominería", "Ingestrac", "Drominc"]);
 
+const usuariosRocaTemporal: UsuarioGestionCambio[] = [
+  {
+    id: "cmrdjjl380000xkm4umbn8068",
+    nombre: "steven",
+    correo: "steven.amado@incomineria.co",
+    empresa: "Incominería",
+    rol: "COLABORADOR",
+    cargo: "Colaborador",
+    activo: true,
+  },
+  {
+    id: "cmrdjk8k00001xkm4czvo26vo",
+    nombre: "alexis",
+    correo: "alexis@incomineria.co",
+    empresa: "Incominería",
+    rol: "GESTION_CALIDAD",
+    cargo: "Gestión de Calidad",
+    activo: true,
+  },
+  {
+    id: "cmrdjklbs0002xkm46nzo7fh9",
+    nombre: "sandra",
+    correo: "sandra.marin@incomineria.co",
+    empresa: "Incominería",
+    rol: "GERENCIA_ADMINISTRATIVA",
+    cargo: "Gerencia Administrativa",
+    activo: true,
+  },
+  {
+    id: "cmrdjkx3k0003xkm4lio3guza",
+    nombre: "eduardo santos",
+    correo: "eduardo.santos@dromos.co",
+    empresa: "Incominería",
+    rol: "LIDER_PROCESO",
+    cargo: "Líder de Proceso",
+    activo: true,
+  },
+  {
+    id: "cmrdjl9ml0004xkm4rrwd0ivd",
+    nombre: "mariana gomez",
+    correo: "mariana.gomez@incomineria.co",
+    empresa: "Incominería",
+    rol: "APROBADOR_ADICIONAL",
+    cargo: "Aprobador adicional",
+    activo: true,
+  },
+];
+
 type WorkflowPayload = {
   observacionesCorreccion?: string;
   validacionCalidad?: string;
@@ -53,29 +101,39 @@ function isRole(value: string | null): value is GestionCambioRol {
   return Boolean(value && validRoles.has(value as GestionCambioRol));
 }
 
-function toUser(row: {
-  id: string;
-  name: string;
-  email: string;
-  company: string;
-  role: string;
-  position: string | null;
-  process: string | null;
-  active: boolean;
-}): UsuarioGestionCambio {
-  if (!isRole(row.role) || !validCompanies.has(row.company)) {
-    throw new Error(`El usuario ${row.email} tiene una configuración no compatible.`);
+function toUser(row: UsuarioGestionCambio): UsuarioGestionCambio {
+  if (!isRole(row.rol) || !validCompanies.has(row.empresa)) {
+    throw new Error(`El usuario ${row.correo} tiene una configuración no compatible.`);
   }
-  return {
-    id: row.id,
-    nombre: row.name,
-    correo: row.email,
-    empresa: row.company as UsuarioGestionCambio["empresa"],
-    rol: row.role,
-    cargo: row.position ?? roleLabels[row.role],
-    proceso: row.process ?? undefined,
-    activo: row.active,
-  };
+  return row;
+}
+
+function findUserById(id?: string | null) {
+  return usuariosRocaTemporal.find((user) => user.id === id && user.activo) ?? null;
+}
+
+function findUser(where: Partial<Pick<UsuarioGestionCambio, "id" | "empresa" | "rol">>) {
+  return (
+    usuariosRocaTemporal.find((user) => {
+      if (!user.activo) return false;
+      if (where.id && user.id !== where.id) return false;
+      if (where.empresa && user.empresa !== where.empresa) return false;
+      if (where.rol && user.rol !== where.rol) return false;
+      return true;
+    }) ?? null
+  );
+}
+
+function findApprover(id: string, company: string) {
+  return (
+    usuariosRocaTemporal.find(
+      (user) =>
+        user.id === id &&
+        user.empresa === company &&
+        user.activo &&
+        (user.rol === "GERENCIA_ADMINISTRATIVA" || user.rol === "APROBADOR_ADICIONAL"),
+    ) ?? null
+  );
 }
 
 type ChangeRow = Awaited<ReturnType<typeof findChange>>;
@@ -84,25 +142,23 @@ async function findChange(id: string) {
   return prisma.registroGestionCambio.findUnique({
     where: { id },
     include: {
-      aprobaciones: { orderBy: { createdAt: "asc" } },
-      seguimientos: { orderBy: { createdAt: "desc" }, take: 1 },
-      historial: { orderBy: { createdAt: "asc" } },
+      movimientos: { orderBy: { createdAt: "asc" } },
     },
   });
 }
 
 function toChange(row: NonNullable<ChangeRow>): GestionCambio {
-  const approvals = row.aprobaciones.map((approval) => ({
+  const approvals = row.movimientos.filter((movement) => movement.type === "APROBACION").map((approval) => ({
     aprobado: approval.approved ? ("SI" as const) : ("NO" as const),
-    nombre: approval.approverName,
+    nombre: approval.userName,
     cargo: approval.position ?? "",
-    fecha: dateOnly(approval.approvedAt) ?? "",
-    observaciones: approval.observations ?? "",
+    fecha: dateOnly(approval.createdAt) ?? "",
+    observaciones: approval.observation ?? "",
     firma: approval.signature ?? undefined,
-    rolAprobador: approval.approverRole as GestionCambioRol,
+    rolAprobador: approval.role as GestionCambioRol,
   }));
   const approval = approvals.at(-1);
-  const followup = row.seguimientos[0];
+  const followup = row.movimientos.filter((movement) => movement.type === "SEGUIMIENTO").at(-1);
   const changeTypes = parseJson<string[]>(row.changeTypes, []);
   const detalle: SolicitudCambioData = {
     empresa: row.company as SolicitudCambioData["empresa"],
@@ -145,15 +201,15 @@ function toChange(row: NonNullable<ChangeRow>): GestionCambio {
     seguimiento: followup
       ? {
           cambioEficaz: followup.effective ? "SI" : "NO",
-          observaciones: followup.observations ?? "",
-          acciones: followup.actions ?? "",
-          nombreCierre: followup.responsibleName,
+          observaciones: followup.observation ?? "",
+          acciones: followup.followupActions ?? "",
+          nombreCierre: followup.userName,
           cargoCierre: followup.position ?? "",
-          fechaSeguimiento: dateOnly(followup.followupAt) ?? "",
-          fechaCierre: dateOnly(followup.closedAt) ?? "",
+          fechaSeguimiento: dateOnly(followup.createdAt) ?? "",
+          fechaCierre: dateOnly(row.closedAt) ?? "",
         }
       : undefined,
-    historial: row.historial.map((entry) => ({
+    historial: row.movimientos.map((entry) => ({
       accion: entry.action as GestionCambioWorkflowAction,
       fecha: entry.createdAt.toISOString(),
       usuarioId: entry.userId ?? undefined,
@@ -171,8 +227,8 @@ function toChange(row: NonNullable<ChangeRow>): GestionCambio {
 }
 
 async function getActor(userId: string) {
-  const actor = await prisma.usuarioGestionCambio.findFirst({ where: { id: userId, active: true } });
-  if (!actor || !isRole(actor.role)) throw new Error("El usuario activo ya no está disponible.");
+  const actor = findUserById(userId);
+  if (!actor || !isRole(actor.rol)) throw new Error("El usuario activo ya no está disponible.");
   return actor;
 }
 
@@ -183,20 +239,33 @@ function historyEntry(
   fromState: string | null,
   toState: string,
   observation: string,
-  approver?: Awaited<ReturnType<typeof prisma.usuarioGestionCambio.findUnique>>,
+  approver?: UsuarioGestionCambio | null,
+  extra?: {
+    type?: "HISTORIAL" | "APROBACION" | "SEGUIMIENTO";
+    approved?: boolean;
+    signature?: string;
+    effective?: boolean;
+    followupActions?: string;
+  },
 ) {
   return {
     changeRequestId: requestId,
+    type: extra?.type ?? "HISTORIAL",
     fromState,
     toState,
     action,
     userId: actor.id,
-    userName: actor.name,
-    role: actor.role,
-    position: actor.position ?? roleLabels[actor.role as GestionCambioRol],
+    userName: actor.nombre,
+    role: actor.rol,
+    position: actor.cargo ?? roleLabels[actor.rol],
     observation,
     selectedApproverId: approver?.id,
-    selectedApproverName: approver?.name,
+    selectedApproverName: approver?.nombre,
+    selectedApproverRole: approver?.rol,
+    approved: extra?.approved,
+    signature: extra?.signature,
+    effective: extra?.effective,
+    followupActions: extra?.followupActions,
   };
 }
 
@@ -227,20 +296,15 @@ function validateImplementationPlan(data: SolicitudCambioData) {
 }
 
 export async function getGestionCambiosData() {
-  const [userRows, changeRows] = await Promise.all([
-    prisma.usuarioGestionCambio.findMany({ where: { active: true }, orderBy: [{ company: "asc" }, { name: "asc" }] }),
-    prisma.registroGestionCambio.findMany({
-      include: {
-        aprobaciones: { orderBy: { createdAt: "asc" } },
-        seguimientos: { orderBy: { createdAt: "desc" }, take: 1 },
-        historial: { orderBy: { createdAt: "asc" } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  const changeRows = await prisma.registroGestionCambio.findMany({
+    include: {
+      movimientos: { orderBy: { createdAt: "asc" } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   return {
-    usuarios: userRows.map(toUser),
+    usuarios: usuariosRocaTemporal.filter((user) => user.activo).map(toUser),
     registros: changeRows.map(toChange),
   };
 }
@@ -249,53 +313,45 @@ export async function createChange(userId: string, data: SolicitudCambioData, in
   validateRequest(data);
   if (intent === "send-quality") validateImplementationPlan(data);
   const actor = await getActor(userId);
-  if (actor.company !== data.empresa) throw new Error("No puedes crear registros para otra empresa.");
+  if (actor.empresa !== data.empresa) throw new Error("No puedes crear registros para otra empresa.");
 
-  const quality = await prisma.usuarioGestionCambio.findFirst({
-    where: { company: data.empresa, role: "GESTION_CALIDAD", active: true },
-  });
+  const quality = findUser({ empresa: data.empresa, rol: "GESTION_CALIDAD" });
   if (intent === "send-quality" && !quality) throw new Error("Configura un responsable de Gestión de Calidad antes de enviar.");
 
   const leader = data.liderProcesoId
-    ? await prisma.usuarioGestionCambio.findFirst({
-        where: { id: data.liderProcesoId, company: data.empresa, role: "LIDER_PROCESO", active: true },
-      })
-    : actor.role === "LIDER_PROCESO"
+    ? findUser({ id: data.liderProcesoId, empresa: data.empresa, rol: "LIDER_PROCESO" })
+    : actor.rol === "LIDER_PROCESO"
       ? actor
       : null;
   if (intent === "send-quality" && !leader) {
     throw new Error("Selecciona el líder del proceso antes de enviar el registro a Calidad.");
   }
-  const leaderName = leader?.name ?? "Pendiente por asignar";
+  const leaderName = leader?.nombre ?? "Pendiente por asignar";
   const state = intent === "send-quality" ? "PENDIENTE_APROBACION_LIDER" : "BORRADOR";
 
   const createdId = await prisma.$transaction(async (tx) => {
-    const counterKey = `gestion-cambios-${new Date().getFullYear()}`;
-    const counter = await tx.consecutivoGestionCambio.upsert({
-      where: { key: counterKey },
-      create: { key: counterKey, value: 1 },
-      update: { value: { increment: 1 } },
-    });
-    const code = `GC-${new Date().getFullYear()}-${String(counter.value).padStart(3, "0")}`;
+    const [{ nextNumber }] = await tx.$queryRaw<{ nextNumber: number }[]>`SELECT nextval('secuencia_codigo_gestion_cambios')::int AS "nextNumber"`;
+    const code = `GC-${new Date().getFullYear()}-${String(nextNumber).padStart(3, "0")}`;
     const request = await tx.registroGestionCambio.create({
       data: {
+        numero: nextNumber,
         code,
         company: data.empresa,
         process: data.proceso.trim(),
         leaderUserId: leader?.id,
         leaderName,
         creatorUserId: actor.id,
-        creatorName: actor.name,
+        creatorName: actor.nombre,
         currentState: state,
-        currentResponsibleRole: state === "BORRADOR" ? actor.role : "LIDER_PROCESO",
+        currentResponsibleRole: state === "BORRADOR" ? actor.rol : "LIDER_PROCESO",
         currentResponsibleId: state === "BORRADOR" ? actor.id : leader?.id,
-        currentResponsibleName: state === "BORRADOR" ? actor.name : leader?.name,
+        currentResponsibleName: state === "BORRADOR" ? actor.nombre : leader?.nombre,
         changeTypes: JSON.stringify(data.tiposCambio),
         analysis: JSON.stringify(data.analisis),
         implementationPlan: JSON.stringify(data.plan),
       },
     });
-    await tx.historialGestionCambio.create({
+    await tx.movimientoGestionCambio.create({
       data: historyEntry(
         request.id,
         actor,
@@ -306,14 +362,14 @@ export async function createChange(userId: string, data: SolicitudCambioData, in
       ),
     });
     if (state === "PENDIENTE_APROBACION_LIDER") {
-      await tx.historialGestionCambio.create({
+      await tx.movimientoGestionCambio.create({
         data: historyEntry(
           request.id,
           actor,
           "ENVIAR_LIDER",
           "BORRADOR",
           state,
-          `El creador diligencia el SIG-F006 y lo envía a ${leader?.name} para aprobación del líder del proceso.`,
+          `El creador diligencia el SIG-F006 y lo envía a ${leader?.nombre} para aprobación del líder del proceso.`,
         ),
       });
     }
@@ -340,14 +396,12 @@ export async function updateChange(
 
   const quality =
     intent === "send-quality"
-      ? await prisma.usuarioGestionCambio.findFirst({ where: { company: current.company, role: "GESTION_CALIDAD", active: true } })
+      ? findUser({ empresa: current.company as UsuarioGestionCambio["empresa"], rol: "GESTION_CALIDAD" })
       : null;
   if (intent === "send-quality" && !quality) throw new Error("Configura un responsable de Gestión de Calidad antes de enviar.");
   const leaderId = data.liderProcesoId ?? current.leaderUserId;
   const leader = leaderId
-    ? await prisma.usuarioGestionCambio.findFirst({
-        where: { id: leaderId, company: current.company, role: "LIDER_PROCESO", active: true },
-      })
+    ? findUser({ id: leaderId, empresa: current.company as UsuarioGestionCambio["empresa"], rol: "LIDER_PROCESO" })
     : null;
   if (intent === "send-quality" && !leader) {
     throw new Error("Selecciona el líder del proceso antes de enviar el registro a Calidad.");
@@ -368,18 +422,18 @@ export async function updateChange(
       data: {
         process: data.proceso.trim(),
         leaderUserId: leader?.id ?? null,
-        leaderName: leader?.name ?? "Pendiente por asignar",
+        leaderName: leader?.nombre ?? "Pendiente por asignar",
         currentState: nextState,
         currentResponsibleRole: intent === "send-quality" ? (returnsToQuality ? "GESTION_CALIDAD" : "LIDER_PROCESO") : current.currentResponsibleRole,
         currentResponsibleId: intent === "send-quality" ? (returnsToQuality ? quality?.id : leader?.id) : current.currentResponsibleId,
-        currentResponsibleName: intent === "send-quality" ? (returnsToQuality ? quality?.name : leader?.name) : current.currentResponsibleName,
+        currentResponsibleName: intent === "send-quality" ? (returnsToQuality ? quality?.nombre : leader?.nombre) : current.currentResponsibleName,
         changeTypes: JSON.stringify(data.tiposCambio),
         analysis: JSON.stringify(data.analisis),
         implementationPlan: JSON.stringify(data.plan),
         correctionNotes: intent === "send-quality" ? null : current.correctionNotes,
       },
     });
-    await tx.historialGestionCambio.create({
+    await tx.movimientoGestionCambio.create({
       data: historyEntry(
         id,
         actor,
@@ -401,7 +455,7 @@ export async function updateChange(
 export async function applyWorkflow(id: string, userId: string, action: GestionCambioWorkflowAction, payload: WorkflowPayload = {}) {
   const [actor, current] = await Promise.all([getActor(userId), prisma.registroGestionCambio.findUnique({ where: { id } })]);
   if (!current) throw new Error("La gestión de cambio ya no existe.");
-  if (actor.company !== current.company) throw new Error("No puedes gestionar registros de otra empresa.");
+  if (actor.empresa !== current.company) throw new Error("No puedes gestionar registros de otra empresa.");
 
   const expected: Partial<Record<GestionCambioWorkflowAction, string>> = {
     APROBAR_LIDER: "PENDIENTE_APROBACION_LIDER",
@@ -414,7 +468,7 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
   };
   if (expected[action] !== current.currentState) throw new Error("El registro cambió de estado. Actualiza la página e inténtalo nuevamente.");
 
-  if (["SOLICITAR_CORRECCION", "VALIDAR_REMITIR", "CERRAR_FORMATO"].includes(action) && actor.role !== "GESTION_CALIDAD") {
+  if (["SOLICITAR_CORRECCION", "VALIDAR_REMITIR", "CERRAR_FORMATO"].includes(action) && actor.rol !== "GESTION_CALIDAD") {
     throw new Error("Esta acción corresponde a Gestión de Calidad.");
   }
   if (["REGISTRAR_APROBACION", "REGISTRAR_RECHAZO"].includes(action) && current.currentResponsibleId !== actor.id) {
@@ -423,7 +477,7 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
 
   await prisma.$transaction(async (tx) => {
     if (action === "APROBAR_LIDER" || action === "RECHAZAR_LIDER") {
-      if (actor.role !== "LIDER_PROCESO" || current.currentResponsibleId !== actor.id) {
+      if (actor.rol !== "LIDER_PROCESO" || current.currentResponsibleId !== actor.id) {
         throw new Error("Este registro está asignado a otro líder de proceso.");
       }
       const approval = payload.aprobacion;
@@ -431,38 +485,28 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
       required(approval.observaciones, "Las observaciones");
       required(approval.firma, "La firma");
       const approved = action === "APROBAR_LIDER";
-      const now = new Date();
       const quality = approved
-        ? await tx.usuarioGestionCambio.findFirst({ where: { company: current.company, role: "GESTION_CALIDAD", active: true } })
+        ? findUser({ empresa: current.company as UsuarioGestionCambio["empresa"], rol: "GESTION_CALIDAD" })
         : null;
       if (approved && !quality) throw new Error("No hay un responsable activo de Gestión de Calidad.");
-      const creator = !approved ? await tx.usuarioGestionCambio.findUnique({ where: { id: current.creatorUserId } }) : null;
+      const creator = !approved ? findUserById(current.creatorUserId) : null;
 
-      await tx.aprobacionGestionCambio.create({
-        data: {
-          changeRequestId: id,
-          approverUserId: actor.id,
-          approverName: actor.name,
-          approverRole: actor.role,
-          approved,
-          position: actor.position ?? roleLabels.LIDER_PROCESO,
-          observations: approval.observaciones.trim(),
-          signature: approval.firma,
-          approvedAt: now,
-        },
-      });
       const nextState = approved ? "EN_REVISION_CALIDAD" : "RECHAZADO_LIDER";
       await tx.registroGestionCambio.update({
         where: { id },
         data: {
           currentState: nextState,
-          currentResponsibleRole: approved ? "GESTION_CALIDAD" : creator?.role ?? "COLABORADOR",
+          currentResponsibleRole: approved ? "GESTION_CALIDAD" : creator?.rol ?? "COLABORADOR",
           currentResponsibleId: approved ? quality?.id : current.creatorUserId,
-          currentResponsibleName: approved ? quality?.name : current.creatorName,
+          currentResponsibleName: approved ? quality?.nombre : current.creatorName,
         },
       });
-      await tx.historialGestionCambio.create({
-        data: historyEntry(id, actor, action, current.currentState, nextState, approval.observaciones.trim()),
+      await tx.movimientoGestionCambio.create({
+        data: historyEntry(id, actor, action, current.currentState, nextState, approval.observaciones.trim(), null, {
+          type: "APROBACION",
+          approved,
+          signature: approval.firma,
+        }),
       });
       return;
     }
@@ -479,48 +523,36 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
           correctionNotes: observation,
         },
       });
-      await tx.historialGestionCambio.create({ data: historyEntry(id, actor, action, current.currentState, "DEVUELTO_LIDER", observation) });
+      await tx.movimientoGestionCambio.create({ data: historyEntry(id, actor, action, current.currentState, "DEVUELTO_LIDER", observation) });
       return;
     }
 
     if (action === "VALIDAR_REMITIR") {
       const approverId = required(payload.aprobadorSeleccionadoId, "El aprobador");
-      const approver = await tx.usuarioGestionCambio.findFirst({
-        where: { id: approverId, company: current.company, active: true, role: { in: ["GERENCIA_ADMINISTRATIVA", "APROBADOR_ADICIONAL"] } },
-      });
+      const approver = findApprover(approverId, current.company);
       if (!approver) throw new Error("El aprobador seleccionado no está disponible.");
       const observation = required(payload.validacionCalidad, "La validación de Calidad");
       const signature = required(payload.firmaRevisionCalidad, "La firma de la revisión de Calidad");
-      const now = new Date();
-      await tx.aprobacionGestionCambio.create({
-        data: {
-          changeRequestId: id,
-          approverUserId: actor.id,
-          approverName: actor.name,
-          approverRole: actor.role,
-          approved: true,
-          position: actor.position ?? roleLabels.GESTION_CALIDAD,
-          observations: observation,
-          signature,
-          approvedAt: now,
-        },
-      });
       await tx.registroGestionCambio.update({
         where: { id },
         data: {
           currentState: "PENDIENTE_APROBACION",
-          currentResponsibleRole: approver.role,
+          currentResponsibleRole: approver.rol,
           currentResponsibleId: approver.id,
-          currentResponsibleName: approver.name,
+          currentResponsibleName: approver.nombre,
           selectedApproverId: approver.id,
-          selectedApproverName: approver.name,
-          selectedApproverRole: approver.role,
+          selectedApproverName: approver.nombre,
+          selectedApproverRole: approver.rol,
           qualityValidation: observation,
           correctionNotes: null,
         },
       });
-      await tx.historialGestionCambio.create({
-        data: historyEntry(id, actor, action, current.currentState, "PENDIENTE_APROBACION", observation, approver),
+      await tx.movimientoGestionCambio.create({
+        data: historyEntry(id, actor, action, current.currentState, "PENDIENTE_APROBACION", observation, approver, {
+          type: "APROBACION",
+          approved: true,
+          signature,
+        }),
       });
       return;
     }
@@ -534,21 +566,8 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
       const now = new Date();
       const closeDueAt = new Date(now);
       closeDueAt.setMonth(closeDueAt.getMonth() + 3);
-      const quality = await tx.usuarioGestionCambio.findFirst({ where: { company: current.company, role: "GESTION_CALIDAD", active: true } });
+      const quality = findUser({ empresa: current.company as UsuarioGestionCambio["empresa"], rol: "GESTION_CALIDAD" });
       if (approved && !quality) throw new Error("No hay un responsable activo de Gestión de Calidad para el seguimiento.");
-      await tx.aprobacionGestionCambio.create({
-        data: {
-          changeRequestId: id,
-          approverUserId: actor.id,
-          approverName: actor.name,
-          approverRole: actor.role,
-          approved,
-          position: actor.position ?? roleLabels[actor.role as GestionCambioRol],
-          observations: approval.observaciones.trim(),
-          signature: approval.firma,
-          approvedAt: now,
-        },
-      });
       const nextState = approved ? "EN_SEGUIMIENTO_CALIDAD" : "RECHAZADO_APROBADOR";
       await tx.registroGestionCambio.update({
         where: { id },
@@ -557,7 +576,7 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
               currentState: nextState,
               currentResponsibleRole: "GESTION_CALIDAD",
               currentResponsibleId: quality?.id,
-              currentResponsibleName: quality?.name,
+              currentResponsibleName: quality?.nombre,
               approvedAt: now,
               followupStartedAt: now,
               closeDueAt,
@@ -569,8 +588,12 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
               currentResponsibleName: current.leaderName,
             },
       });
-      await tx.historialGestionCambio.create({
-        data: historyEntry(id, actor, action, current.currentState, nextState, approval.observaciones.trim()),
+      await tx.movimientoGestionCambio.create({
+        data: historyEntry(id, actor, action, current.currentState, nextState, approval.observaciones.trim(), null, {
+          type: "APROBACION",
+          approved,
+          signature: approval.firma,
+        }),
       });
       return;
     }
@@ -584,22 +607,22 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
         throw new Error("Un cambio no eficaz debe permanecer en seguimiento y no puede finalizarse como aprobado.");
       }
       const now = new Date();
-      await tx.seguimientoGestionCambio.create({
-        data: {
-          changeRequestId: id,
-          responsibleUserId: actor.id,
-          responsibleName: actor.name,
-          effective: followup.cambioEficaz === "SI",
-          observations: followup.observaciones.trim(),
-          actions: followup.acciones.trim(),
-          position: actor.position ?? roleLabels.GESTION_CALIDAD,
-          followupAt: now,
-          closedAt: now,
-        },
-      });
       await tx.registroGestionCambio.update({ where: { id }, data: { currentState: "APROBADO", closedAt: now } });
-      await tx.historialGestionCambio.create({
-        data: historyEntry(id, actor, action, current.currentState, "APROBADO", followup.observaciones.trim() || "Calidad finaliza el formato SIG-F006 como aprobado."),
+      await tx.movimientoGestionCambio.create({
+        data: historyEntry(
+          id,
+          actor,
+          action,
+          current.currentState,
+          "APROBADO",
+          followup.observaciones.trim() || "Calidad finaliza el formato SIG-F006 como aprobado.",
+          null,
+          {
+            type: "SEGUIMIENTO",
+            effective: followup.cambioEficaz === "SI",
+            followupActions: followup.acciones.trim(),
+          },
+        ),
       });
       return;
     }
@@ -610,29 +633,10 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
   return toChange((await findChange(id))!);
 }
 
-export async function createUser(input: Omit<UsuarioGestionCambio, "id" | "activo">) {
-  if (!validCompanies.has(input.empresa) || !validRoles.has(input.rol)) throw new Error("La empresa o el rol no son válidos.");
-  const user = await prisma.usuarioGestionCambio.create({
-    data: {
-      name: required(input.nombre, "El nombre"),
-      email: required(input.correo, "El correo").toLowerCase(),
-      company: input.empresa,
-      role: input.rol,
-      position: input.cargo?.trim() || roleLabels[input.rol],
-      process: input.proceso?.trim() || null,
-      active: true,
-    },
-  });
-  return toUser(user);
+export async function createUser(_input: Omit<UsuarioGestionCambio, "id" | "activo">) {
+  throw new Error("Los usuarios se administrarán desde ROCA. Esta base solo guarda registros y movimientos de Gestión de Cambios.");
 }
 
-export async function deactivateUser(id: string) {
-  const assigned = await prisma.registroGestionCambio.count({
-    where: {
-      OR: [{ creatorUserId: id }, { leaderUserId: id }, { currentResponsibleId: id }, { selectedApproverId: id }],
-      currentState: { not: "CERRADO" },
-    },
-  });
-  if (assigned > 0) throw new Error("No puedes desactivar este usuario porque tiene gestiones abiertas asignadas.");
-  await prisma.usuarioGestionCambio.update({ where: { id }, data: { active: false } });
+export async function deactivateUser(_id: string) {
+  throw new Error("Los usuarios se administrarán desde ROCA. Esta base solo guarda registros y movimientos de Gestión de Cambios.");
 }

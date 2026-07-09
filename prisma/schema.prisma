@@ -6,32 +6,9 @@ datasource db {
   provider = "postgresql"
 }
 
-model UsuarioGestionCambio {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  company   String
-  role      String
-  position  String?
-  process   String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([email, company, role])
-  @@index([company, role, active])
-  @@map("usuarios_gestion_cambios")
-}
-
-model ConsecutivoGestionCambio {
-  key   String @id
-  value Int    @default(0)
-
-  @@map("consecutivos_gestion_cambios")
-}
-
 model RegistroGestionCambio {
   id                     String   @id @default(cuid())
+  numero                 Int      @unique @default(autoincrement())
   code                   String   @unique
   company                String
   process                String
@@ -58,9 +35,7 @@ model RegistroGestionCambio {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  aprobaciones AprobacionGestionCambio[]
-  seguimientos SeguimientoGestionCambio[]
-  historial    HistorialGestionCambio[]
+  movimientos MovimientoGestionCambio[]
 
   @@index([company])
   @@index([process])
@@ -71,64 +46,32 @@ model RegistroGestionCambio {
   @@map("registros_gestion_cambios")
 }
 
-model AprobacionGestionCambio {
-  id              String   @id @default(cuid())
-  changeRequestId String
-  approverUserId  String?
-  approverName    String
-  approverRole    String
-  approved        Boolean
-  position        String?
-  observations    String?
-  signature       String?
-  approvedAt      DateTime
-  createdAt       DateTime @default(now())
+model MovimientoGestionCambio {
+  id                   String   @id @default(cuid())
+  changeRequestId      String
+  type                 String
+  action               String
+  fromState            String?
+  toState              String
+  userId               String?
+  userName             String
+  role                 String?
+  position             String?
+  observation          String?
+  selectedApproverId   String?
+  selectedApproverName String?
+  selectedApproverRole String?
+  approved             Boolean?
+  signature            String?
+  effective            Boolean?
+  followupActions      String?
+  createdAt            DateTime @default(now())
 
   registroGestionCambio RegistroGestionCambio @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
 
   @@index([changeRequestId])
-  @@index([approverUserId])
-  @@map("aprobaciones_gestion_cambios")
-}
-
-model SeguimientoGestionCambio {
-  id                String   @id @default(cuid())
-  changeRequestId   String
-  responsibleUserId String?
-  responsibleName   String
-  effective         Boolean
-  observations      String?
-  actions           String?
-  position          String?
-  followupAt        DateTime
-  closedAt          DateTime
-  createdAt         DateTime @default(now())
-
-  registroGestionCambio RegistroGestionCambio @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
-
-  @@index([changeRequestId])
-  @@index([responsibleUserId])
-  @@map("seguimientos_gestion_cambios")
-}
-
-model HistorialGestionCambio {
-  id                       String   @id @default(cuid())
-  changeRequestId          String
-  fromState                String?
-  toState                  String
-  action                   String
-  userId                   String?
-  userName                 String
-  role                     String?
-  position                 String?
-  observation              String?
-  selectedApproverId       String?
-  selectedApproverName     String?
-  createdAt                DateTime @default(now())
-
-  registroGestionCambio RegistroGestionCambio @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
-
-  @@index([changeRequestId])
+  @@index([userId])
+  @@index([type])
   @@index([createdAt])
-  @@map("historial_gestion_cambios")
+  @@map("movimientos_gestion_cambios")
 }

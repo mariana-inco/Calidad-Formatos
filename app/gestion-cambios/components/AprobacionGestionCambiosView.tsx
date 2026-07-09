@@ -1,6 +1,7 @@
 "use client";
 
-import { ClipboardCheck, ShieldAlert } from "lucide-react";
+import { ClipboardCheck, Search, ShieldAlert } from "lucide-react";
+import { useState } from "react";
 import type { GestionCambio, UsuarioGestionCambio } from "./types";
 import { HistorialGestionCambiosTable } from "./HistorialGestionCambiosTable";
 import {
@@ -8,10 +9,7 @@ import {
   canEditCorrection,
   filterRegistrosForApproval,
   filterRegistrosForApprovalHistory,
-  getDiasRestantes,
-  getEffectiveEstado,
   hasApproverDecision,
-  hasQualityInitialReview,
   roleLabels,
 } from "./workflow";
 
@@ -56,6 +54,9 @@ function ApprovalSection({
 }
 
 export function AprobacionGestionCambiosView({ registros, usuarioActual, onView, onEdit }: AprobacionGestionCambiosViewProps) {
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyState, setHistoryState] = useState("");
+
   if (!canAccessApproval(usuarioActual)) {
     return (
       <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-950 shadow-sm">
@@ -75,20 +76,21 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
   const registrosAsignados = filterRegistrosForApproval(registros, usuarioActual);
   const registrosHistorial = filterRegistrosForApprovalHistory(registros, usuarioActual);
 
-  const pendientesRevision = registrosAsignados.filter((registro) => registro.estado === "EN_REVISION_CALIDAD" && !hasQualityInitialReview(registro));
-  const devueltos = registros.filter(
-    (registro) =>
-      usuarioActual?.rol === "GESTION_CALIDAD" &&
-      registro.empresa === usuarioActual.empresa &&
-      (registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR"),
-  );
-  const seguimiento = registrosAsignados.filter((registro) => registro.estado === "EN_SEGUIMIENTO_CALIDAD");
-  const proximos = seguimiento.filter((registro) => {
-    if (getEffectiveEstado(registro) === "VENCIDO") return true;
-    const dias = getDiasRestantes(registro.fechaLimiteCierre);
-    return dias !== null && dias <= 15;
-  });
   const pendientesAprobar = registrosAsignados.filter((registro) => registro.estado === "PENDIENTE_APROBACION" && !hasApproverDecision(registro, usuarioActual));
+  const pendientesLider = registrosAsignados.filter((registro) => registro.estado === "PENDIENTE_APROBACION_LIDER");
+  const registrosCalidad = [...registrosAsignados, ...registrosHistorial].filter(
+    (registro, index, items) => items.findIndex((item) => item.id === registro.id) === index,
+  );
+  const registrosConsulta = usuarioActual?.rol === "GESTION_CALIDAD" ? registrosCalidad : registrosHistorial;
+  const query = historyQuery.trim().toLocaleLowerCase("es");
+  const historialFiltrado = registrosConsulta.filter((registro) => {
+    const matchesQuery =
+      !query ||
+      registro.codigo.toLocaleLowerCase("es").includes(query) ||
+      registro.liderProceso.toLocaleLowerCase("es").includes(query) ||
+      registro.proceso.toLocaleLowerCase("es").includes(query);
+    return matchesQuery && (!historyState || registro.estado === historyState);
+  });
 
   return (
     <div className="space-y-7">
@@ -107,27 +109,51 @@ export function AprobacionGestionCambiosView({ registros, usuarioActual, onView,
       </section>
 
       {usuarioActual?.rol === "GESTION_CALIDAD" ? (
-        <>
-          <ApprovalSection title="Pendientes de revisión inicial" description="Registros asignados a Calidad para validar documentación." registros={pendientesRevision} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
-          <ApprovalSection title="Devueltos o pendientes de ajuste" description="Registros que están en manos del líder o fueron rechazados por el aprobador." registros={devueltos} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
-          <ApprovalSection title="Aprobados pendientes de seguimiento" description="Registros que ya aprobaron y deben cerrarse por Gestión de Calidad." registros={seguimiento} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
-          <ApprovalSection title="Próximos a vencer" description="Registros con fecha límite de cierre vencida o dentro de los próximos 15 días." registros={proximos} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
-          <ApprovalSection
-            title="Historial de registros gestionados"
-            description="Todos los registros que revisaste, devolviste, remitiste o cerraste permanecen aquí con su estado y trazabilidad completa."
-            registros={registrosHistorial}
-            usuarioActual={usuarioActual}
-            onView={onView}
-            onEdit={onEdit}
-          />
-        </>
+        <section className="space-y-3">
+            <div>
+              <h2 className="text-lg font-black uppercase text-slate-950">Historial de registros gestionados</h2>
+              <p className="mt-1 text-sm text-slate-600">Consulta los registros asignados o revisados por Calidad y su estado actual.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[1fr_15rem]">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-3 size-4 text-slate-400" />
+                <input
+                  value={historyQuery}
+                  onChange={(event) => setHistoryQuery(event.target.value)}
+                  placeholder="Buscar por código, líder o proceso"
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <select
+                value={historyState}
+                onChange={(event) => setHistoryState(event.target.value)}
+                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+              >
+                <option value="">Todos los estados</option>
+                <option value="EN_REVISION_CALIDAD">Pendiente de revisión</option>
+                <option value="PENDIENTE_APROBACION">Pendiente de aprobación</option>
+                <option value="EN_SEGUIMIENTO_CALIDAD">En seguimiento</option>
+                <option value="APROBADO">Aprobado</option>
+                <option value="RECHAZADO_APROBADOR">Rechazado</option>
+              </select>
+            </div>
+            <HistorialGestionCambiosTable
+              registros={historialFiltrado}
+              emptyTitle="No hay registros con estos filtros"
+              emptyDescription="Ajusta la búsqueda o el estado seleccionado."
+              onView={onView}
+            />
+          </section>
       ) : usuarioActual?.rol === "GERENCIA_ADMINISTRATIVA" || usuarioActual?.rol === "APROBADOR_ADICIONAL" ? (
         <>
           <ApprovalSection title="Pendientes por aprobar" description="Registros asignados a tu usuario o rol aprobador." registros={pendientesAprobar} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
           <ApprovalSection title="Historial de aprobaciones realizadas" description="Registros que ya aprobaste o rechazaste." registros={registrosHistorial} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
         </>
       ) : (
-        <ApprovalSection title="Pendientes de ajuste" description="Registros devueltos al líder de proceso para corrección." registros={registrosAsignados} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+        <>
+          <ApprovalSection title="Pendientes de aprobación del líder" description="Cambios creados por colaboradores que requieren tu decisión como líder del proceso." registros={pendientesLider} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+          <ApprovalSection title="Historial de decisiones" description="Registros que aprobaste, rechazaste o atendiste como líder." registros={registrosHistorial} usuarioActual={usuarioActual} onView={onView} onEdit={onEdit} />
+        </>
       )}
     </div>
   );

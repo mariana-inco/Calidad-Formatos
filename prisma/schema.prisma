@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -12,6 +12,7 @@ model User {
   email     String
   company   String
   role      String
+  position  String?
   process   String?
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -130,4 +131,59 @@ model ChangeHistory {
   @@index([changeRequestId])
   @@index([createdAt])
   @@map("change_history")
+}
+
+model SolicitudCompra {
+  id                   Int                    @id @default(autoincrement())
+  numero_solicitud     String                 @unique
+  id_usuario           String
+  id_aprobador         String?
+  centro_operacion     String
+  tipo_documento       String?
+  fecha_aprobacion     DateTime?
+  referencia_documento String
+  estado               EstadoSolicitudCompra @default(PENDIENTE)
+  notas                String
+  observacion          String?
+  cotizacion_adjunto   Json?
+  created_at           DateTime               @default(now())
+  updated_at           DateTime
+  SolicitudCompraItem  SolicitudCompraItem[]
+
+  @@index([estado])
+  @@index([id_aprobador])
+  @@index([id_usuario])
+  @@index([numero_solicitud])
+}
+
+model SolicitudCompraItem {
+  id                  Int             @id @default(autoincrement())
+  solicitud_compra_id Int
+  item                String
+  centro_operacion    String?
+  centro_costo        String
+  bodega              String?
+  motivo              String?
+  unidad_negocio      String?
+  descripcion_detalle String
+  unidad              String
+  es_servicio         Boolean         @default(false)
+  notas               String?
+  activo              Boolean         @default(true)
+  created_at          DateTime        @default(now())
+  updated_at          DateTime
+  cantidad_solicitada Int             @default(1)
+  precio_sugerido     String?
+  SolicitudCompra     SolicitudCompra @relation(fields: [solicitud_compra_id], references: [id], onDelete: Cascade)
+
+  @@index([activo])
+  @@index([solicitud_compra_id])
+}
+
+enum EstadoSolicitudCompra {
+  PENDIENTE
+  EN_PROGRESO
+  APROBADA
+  RECHAZADA
+  COMPLETADA
 }

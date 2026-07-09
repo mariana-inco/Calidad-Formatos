@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Download, FilePenLine, PlusCircle, UserCheck, Workflow } from "lucide-react";
+import { CalendarDays, Download, FilePenLine, UserCheck, Workflow } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { analisisFields } from "./formData";
@@ -20,6 +20,7 @@ import {
 export type WorkflowPayload = {
   observacionesCorreccion?: string;
   validacionCalidad?: string;
+  firmaRevisionCalidad?: string;
   aprobadorSeleccionadoId?: string;
   aprobacion?: AprobacionCambioData;
   seguimiento?: SeguimientoCambioData;
@@ -38,9 +39,12 @@ const inputClassName =
   "mt-2 w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-100";
 
 const actionLabels: Record<GestionCambioWorkflowAction, string> = {
-  CREAR_REGISTRO: "Líder identifica el cambio",
+  CREAR_REGISTRO: "Crea el registro",
   GUARDAR_BORRADOR: "Guarda borrador",
+  ENVIAR_LIDER: "Envía al líder del proceso",
   ENVIAR_CALIDAD: "Envía a Calidad",
+  APROBAR_LIDER: "Líder aprueba y remite a Calidad",
+  RECHAZAR_LIDER: "Líder rechaza el cambio",
   REENVIAR_CALIDAD: "Envía a revisión de Calidad",
   SOLICITAR_CORRECCION: "Calidad devuelve al líder",
   VALIDAR_REMITIR: "Calidad valida y remite a aprobación",
@@ -104,12 +108,15 @@ export function GestionCambioDetalle({
 }: GestionCambioDetalleProps) {
   const [calidadAprueba, setCalidadAprueba] = useState<"SI" | "NO">("SI");
   const [observacionesCorreccion, setObservacionesCorreccion] = useState(registro.observacionesCorreccion ?? "");
+  const [firmaRevisionCalidad, setFirmaRevisionCalidad] = useState(
+    registro.aprobaciones?.find((item) => item.rolAprobador === "GESTION_CALIDAD")?.firma ?? "",
+  );
   const [aprobacion, setAprobacion] = useState<AprobacionCambioData>(
     registro.aprobacion ?? {
       aprobado: "SI",
       nombre: usuarioActual?.nombre ?? "",
-      cargo: roleLabels[usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA"],
-      fecha: new Date().toISOString().slice(0, 10),
+      cargo: usuarioActual?.cargo ?? roleLabels[usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA"],
+      fecha: "",
       observaciones: "",
       firma: "",
       rolAprobador: usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA",
@@ -121,17 +128,20 @@ export function GestionCambioDetalle({
       observaciones: "",
       acciones: "",
       nombreCierre: usuarioActual?.nombre ?? "",
-      cargoCierre: roleLabels[usuarioActual?.rol ?? "GESTION_CALIDAD"],
+      cargoCierre: usuarioActual?.cargo ?? roleLabels[usuarioActual?.rol ?? "GESTION_CALIDAD"],
       fechaSeguimiento: new Date().toISOString().slice(0, 10),
       fechaCierre: new Date().toISOString().slice(0, 10),
     },
   );
-  const [seguimientoAgregado, setSeguimientoAgregado] = useState(Boolean(registro.seguimiento));
   const [aprobadorSeleccionadoId, setAprobadorSeleccionadoId] = useState(registro.aprobadorSeleccionadoId ?? responsablesAprobacion[0]?.id ?? "");
   const [error, setError] = useState("");
 
   const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD" && !hasQualityInitialReview(registro);
   const isQualityFollowup = registro.estado === "EN_SEGUIMIENTO_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD";
+  const isLeaderApprovalTurn =
+    registro.estado === "PENDIENTE_APROBACION_LIDER" &&
+    usuarioActual?.rol === "LIDER_PROCESO" &&
+    registro.responsableActualId === usuarioActual.id;
   const isApproverTurn =
     registro.estado === "PENDIENTE_APROBACION" &&
     usuarioActual &&
@@ -139,7 +149,10 @@ export function GestionCambioDetalle({
     (registro.responsableActualId === usuarioActual.id || (!registro.responsableActualId && registro.responsableActual === usuarioActual.rol));
   const canReenterQuality = Boolean(
     usuarioActual &&
-      (registro.estado === "BORRADOR" || registro.estado === "DEVUELTO_LIDER" || registro.estado === "RECHAZADO_APROBADOR") &&
+      (registro.estado === "BORRADOR" ||
+        registro.estado === "DEVUELTO_LIDER" ||
+        registro.estado === "RECHAZADO_LIDER" ||
+        registro.estado === "RECHAZADO_APROBADOR") &&
       (registro.creadorId === usuarioActual.id || registro.liderProcesoId === usuarioActual.id),
   );
   const estadoActual = getEffectiveEstado(registro);
@@ -163,12 +176,14 @@ export function GestionCambioDetalle({
       return;
     }
     if (!requireText(aprobadorSeleccionadoId, "Seleccione a quién enviar para aprobación.")) return;
+    if (!requireText(firmaRevisionCalidad, "La firma de la revisión de Calidad es obligatoria.")) return;
 
     const aprobador = responsablesAprobacion.find((responsable) => responsable.id === aprobadorSeleccionadoId);
 
     setError("");
     onWorkflowAction?.("VALIDAR_REMITIR", {
       aprobadorSeleccionadoId,
+      firmaRevisionCalidad,
       validacionCalidad: observacionesCorreccion.trim()
         ? `Calidad aprueba la revisión inicial y remite a ${aprobador?.nombre ?? "el aprobador seleccionado"}. Observaciones: ${observacionesCorreccion.trim()}`
         : `Calidad aprueba la revisión inicial y remite a ${aprobador?.nombre ?? "el aprobador seleccionado"}.`,
@@ -176,13 +191,17 @@ export function GestionCambioDetalle({
   };
 
   const registerApprovalDecision = () => {
-    if (!requireText(aprobacion.nombre, "El nombre del aprobador es obligatorio.")) return;
-    if (!requireText(aprobacion.cargo, "El cargo del aprobador es obligatorio.")) return;
-    if (!requireText(aprobacion.fecha, "La fecha de aprobación es obligatoria.")) return;
     if (!requireText(aprobacion.observaciones, "Las observaciones de aprobación son obligatorias.")) return;
     if (!requireText(aprobacion.firma ?? "", "La firma del aprobador es obligatoria.")) return;
     setError("");
-    onWorkflowAction?.(aprobacion.aprobado === "SI" ? "REGISTRAR_APROBACION" : "REGISTRAR_RECHAZO", { aprobacion });
+    const action = isLeaderApprovalTurn
+      ? aprobacion.aprobado === "SI"
+        ? "APROBAR_LIDER"
+        : "RECHAZAR_LIDER"
+      : aprobacion.aprobado === "SI"
+        ? "REGISTRAR_APROBACION"
+        : "REGISTRAR_RECHAZO";
+    onWorkflowAction?.(action, { aprobacion });
   };
 
   const validateSeguimiento = () => {
@@ -192,21 +211,16 @@ export function GestionCambioDetalle({
     }
     if (seguimiento.cambioEficaz === "NO" && !requireText(seguimiento.observaciones, "Las observaciones del seguimiento son obligatorias cuando el cambio no fue eficaz.")) return false;
     if (!requireText(seguimiento.acciones, "Las acciones del seguimiento son obligatorias.")) return false;
-    if (!requireText(seguimiento.nombreCierre, "El nombre de quien realiza seguimiento y cierre es obligatorio.")) return false;
-    if (!requireText(seguimiento.cargoCierre, "El cargo es obligatorio.")) return false;
-    if (!requireText(seguimiento.fechaSeguimiento, "La fecha de seguimiento es obligatoria.")) return false;
-    if (!requireText(seguimiento.fechaCierre, "La fecha de cierre es obligatoria.")) return false;
     setError("");
     return true;
   };
 
-  const addSeguimiento = () => {
-    if (!validateSeguimiento()) return;
-    setSeguimientoAgregado(true);
-  };
-
   const closeFormat = () => {
     if (!validateSeguimiento()) return;
+    if (seguimiento.cambioEficaz !== "SI") {
+      setError("Un cambio no eficaz no puede finalizarse como aprobado. Registra las acciones requeridas y mantén el seguimiento abierto.");
+      return;
+    }
     setError("");
     onWorkflowAction?.("CERRAR_FORMATO", { seguimiento });
   };
@@ -280,7 +294,12 @@ export function GestionCambioDetalle({
           <h2>Validación, aprobación y seguimiento</h2>
           <div class="grid">
             <div class="box"><span class="label">Validación de Calidad</span>${registro.validacionCalidad ?? ""}</div>
-            <div class="box"><span class="label">Aprobación</span>${registro.aprobacion ? `${registro.aprobacion.aprobado} - ${registro.aprobacion.nombre} - ${registro.aprobacion.observaciones}${registro.aprobacion.firma ? `<br/><img src="${registro.aprobacion.firma}" alt="Firma aprobador" style="max-width:220px;max-height:70px;margin-top:8px" />` : ""}` : ""}</div>
+            ${(registro.aprobaciones ?? [])
+              .map(
+                (item) =>
+                  `<div class="box"><span class="label">${roleLabels[item.rolAprobador]} - ${item.aprobado === "SI" ? "Conforme" : "Rechazado"}</span>${item.nombre} - ${item.cargo}<br/>${item.observaciones}${item.firma ? `<br/><img src="${item.firma}" alt="Firma de ${item.nombre}" style="max-width:220px;max-height:70px;margin-top:8px" />` : ""}</div>`,
+              )
+              .join("")}
             <div class="box"><span class="label">Seguimiento de eficacia</span>${registro.seguimiento ? `${registro.seguimiento.cambioEficaz} - ${registro.seguimiento.observaciones} ${registro.seguimiento.acciones}` : ""}</div>
             <div class="box"><span class="label">Estado final / fecha cierre</span>${estadoLabels[getEffectiveEstado(registro)]} ${registro.fechaCierre ?? ""}</div>
           </div>
@@ -304,10 +323,10 @@ export function GestionCambioDetalle({
 
       <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
         <div className="border-b border-slate-300 bg-[#e6f0df] px-4 py-2 text-center text-sm font-black uppercase tracking-wide text-slate-950">
-          4. Aprobación del cambio
+          Revisión de cumplimiento por Calidad
         </div>
         <div className="grid gap-4 border-b border-slate-300 px-4 py-4 md:grid-cols-[1fr_auto_auto] md:items-center">
-          <p className="text-sm font-semibold text-slate-950">¿El cambio solicitado es aprobado?</p>
+          <p className="text-sm font-semibold text-slate-950">¿La información cumple los requisitos para continuar?</p>
           <label className="inline-flex items-center gap-3 text-sm font-semibold uppercase text-slate-950">
             SI
             <input
@@ -334,32 +353,39 @@ export function GestionCambioDetalle({
             value={observacionesCorreccion}
             onChange={(event) => setObservacionesCorreccion(event.target.value)}
             className={`${inputClassName} min-h-20`}
-            placeholder={calidadAprueba === "SI" ? "Registra observaciones de la revisión inicial." : "Indica qué debe corregir el líder de proceso."}
+            placeholder={calidadAprueba === "SI" ? "Registra el resultado de la revisión de cumplimiento." : "Indica qué debe corregir el creador o líder de proceso."}
           />
         </label>
 
         {calidadAprueba === "SI" ? (
-          <label className="block border-t border-slate-300 px-4 py-4">
-            <span className="text-xs font-black uppercase tracking-wide text-slate-600">Enviar para aprobación a</span>
-            <select
-              value={aprobadorSeleccionadoId}
-              onChange={(event) => setAprobadorSeleccionadoId(event.target.value)}
-              className={`${inputClassName} bg-white`}
-            >
-              <option value="">Seleccione responsable configurado</option>
-              {responsablesAprobacion.map((responsable) => (
-                <option key={responsable.id} value={responsable.id}>
-                  {responsable.nombre} - {roleLabels[responsable.rol]}
-                  {responsable.proceso ? ` - ${responsable.proceso}` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="space-y-5 border-t border-slate-300 px-4 py-4">
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-wide text-slate-600">Enviar para aprobación a</span>
+              <select
+                value={aprobadorSeleccionadoId}
+                onChange={(event) => setAprobadorSeleccionadoId(event.target.value)}
+                className={`${inputClassName} bg-white`}
+              >
+                <option value="">Seleccione responsable configurado</option>
+                {responsablesAprobacion.map((responsable) => (
+                  <option key={responsable.id} value={responsable.id}>
+                    {responsable.nombre} - {roleLabels[responsable.rol]}
+                    {responsable.proceso ? ` - ${responsable.proceso}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <SignaturePad
+              value={firmaRevisionCalidad}
+              label="Firma de revisión de Calidad"
+              onChange={setFirmaRevisionCalidad}
+            />
+          </div>
         ) : null}
       </div>
 
       <div className="flex justify-end">
-        <PrimaryButton onClick={saveQualityReview}>{calidadAprueba === "SI" ? "Validar y remitir a aprobación" : "Solicitar corrección"}</PrimaryButton>
+        <PrimaryButton onClick={saveQualityReview}>{calidadAprueba === "SI" ? "Validar cumplimiento y remitir" : "Solicitar corrección"}</PrimaryButton>
       </div>
     </div>
   );
@@ -367,53 +393,35 @@ export function GestionCambioDetalle({
   const renderAprobacionCambio = () => (
     <div className="space-y-5">
       <div>
-        <h3 className="text-base font-black text-slate-950">4. APROBACIÓN DEL CAMBIO</h3>
+          <h3 className="text-base font-black text-slate-950">
+            {isLeaderApprovalTurn ? "Aprobación del líder del proceso" : "Aprobación del cambio"}
+          </h3>
         <p className="mt-1 text-sm leading-6 text-slate-600">
           Responsable actual: {registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}.
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-slate-300">
-        <div className="grid grid-cols-[1fr_1fr_1fr] border-b border-slate-300 bg-slate-50 text-sm font-black uppercase text-slate-700">
-          <div className="border-r border-slate-300 px-4 py-3">¿El cambio solicitado es aprobado?</div>
-          <div className="border-r border-slate-300 px-4 py-3">NOMBRE</div>
-          <div className="px-4 py-3">CARGO</div>
-        </div>
-        <div className="grid grid-cols-[1fr_1fr_1fr] border-b border-slate-300 bg-white">
-          <div className="border-r border-slate-300 px-4 py-4">
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={aprobacion.aprobado === "SI"}
-                  onChange={(event) => setAprobacion((current) => ({ ...current, aprobado: event.target.checked ? "SI" : "NO" }))}
-                  className="size-4 cursor-pointer"
-                />
-                <span className="text-sm font-semibold">SI</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={aprobacion.aprobado === "NO"}
-                  onChange={(event) => setAprobacion((current) => ({ ...current, aprobado: event.target.checked ? "NO" : "SI" }))}
-                  className="size-4 cursor-pointer"
-                />
-                <span className="text-sm font-semibold">NO</span>
-              </label>
-            </div>
-          </div>
-          <div className="border-r border-slate-300 px-4 py-4">
-            <input value={aprobacion.nombre} onChange={(event) => setAprobacion((current) => ({ ...current, nombre: event.target.value }))} className="h-10 w-full border border-slate-300 px-2 py-1 text-sm font-semibold text-slate-950 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
-          </div>
-          <div className="px-4 py-4">
-            <input value={aprobacion.cargo} onChange={(event) => setAprobacion((current) => ({ ...current, cargo: event.target.value }))} className="h-10 w-full border border-slate-300 px-2 py-1 text-sm font-semibold text-slate-950 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
-          </div>
-        </div>
-        <div className="border-t border-slate-300 bg-slate-50 px-4 py-3 text-right text-sm font-black uppercase text-slate-700">
-          FECHA (dd/mm/aaaa)
-        </div>
-        <div className="bg-white px-4 py-4">
-          <input type="date" value={aprobacion.fecha} onChange={(event) => setAprobacion((current) => ({ ...current, fecha: event.target.value }))} className="h-10 w-32 border border-slate-300 px-2 py-1 text-sm font-semibold text-slate-950 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+      <div className="rounded-md border border-slate-300 bg-white p-4">
+        <p className="text-xs font-black uppercase text-slate-600">¿El cambio solicitado es aprobado?</p>
+        <div className="mt-3 inline-flex overflow-hidden rounded-md border border-slate-300">
+          <button
+            type="button"
+            onClick={() => setAprobacion((current) => ({ ...current, aprobado: "SI" }))}
+            className={`h-10 px-5 text-sm font-bold transition ${
+              aprobacion.aprobado === "SI" ? "bg-emerald-800 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            Sí
+          </button>
+          <button
+            type="button"
+            onClick={() => setAprobacion((current) => ({ ...current, aprobado: "NO" }))}
+            className={`h-10 border-l border-slate-300 px-5 text-sm font-bold transition ${
+              aprobacion.aprobado === "NO" ? "bg-red-700 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            No
+          </button>
         </div>
       </div>
 
@@ -422,7 +430,11 @@ export function GestionCambioDetalle({
         <textarea value={aprobacion.observaciones} onChange={(event) => setAprobacion((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-20`} placeholder="Registra las observaciones de la aprobación o rechazo." />
       </label>
 
-      <SignaturePad value={aprobacion.firma} onChange={(firma) => setAprobacion((current) => ({ ...current, firma }))} />
+      <SignaturePad
+        value={aprobacion.firma}
+        label={isLeaderApprovalTurn ? "Firma del líder del proceso" : "Firma del aprobador"}
+        onChange={(firma) => setAprobacion((current) => ({ ...current, firma }))}
+      />
 
       <div className="flex justify-end">
         <PrimaryButton onClick={registerApprovalDecision}>{aprobacion.aprobado === "SI" ? "Aprobar cambio" : "Rechazar cambio"}</PrimaryButton>
@@ -456,10 +468,6 @@ export function GestionCambioDetalle({
             <option value="NO">No</option>
           </select>
         </label>
-        <label className="block">
-          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Fecha de seguimiento</span>
-          <input type="date" value={seguimiento.fechaSeguimiento} onChange={(event) => setSeguimiento((current) => ({ ...current, fechaSeguimiento: event.target.value }))} className={inputClassName} />
-        </label>
         <label className="block md:col-span-2">
           <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Observaciones</span>
           <textarea value={seguimiento.observaciones} onChange={(event) => setSeguimiento((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-16`} />
@@ -468,56 +476,10 @@ export function GestionCambioDetalle({
           <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Acciones a tomar</span>
           <textarea value={seguimiento.acciones} onChange={(event) => setSeguimiento((current) => ({ ...current, acciones: event.target.value }))} className={`${inputClassName} min-h-16`} />
         </label>
-        <label className="block">
-          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Nombre de quien realiza el seguimiento y cierre</span>
-          <input value={seguimiento.nombreCierre} onChange={(event) => setSeguimiento((current) => ({ ...current, nombreCierre: event.target.value }))} className={inputClassName} />
-        </label>
-        <label className="block">
-          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Cargo</span>
-          <input value={seguimiento.cargoCierre} onChange={(event) => setSeguimiento((current) => ({ ...current, cargoCierre: event.target.value }))} className={inputClassName} />
-        </label>
-        <label className="block">
-          <span className="text-xs font-black uppercase italic tracking-wide text-slate-950">Fecha de cierre</span>
-          <input type="date" value={seguimiento.fechaCierre} onChange={(event) => setSeguimiento((current) => ({ ...current, fechaCierre: event.target.value }))} className={inputClassName} />
-        </label>
-      </div>
-
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={addSeguimiento}
-          aria-label="Agregar seguimiento"
-          title="Agregar seguimiento"
-          className="inline-flex h-12 items-center justify-center gap-3 rounded-md border-2 border-emerald-900 bg-white px-6 text-sm font-bold text-emerald-950 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700"
-        >
-          <PlusCircle className="size-5" />
-          <span>Agregar seguimiento</span>
-        </button>
-      </div>
-
-      <div className="overflow-x-auto rounded-md border border-slate-300">
-        <div className="grid min-w-[980px] grid-cols-[0.6fr_1.1fr_1.1fr_1.15fr_0.75fr_0.75fr_0.75fr] bg-emerald-900 text-center text-[11px] font-black uppercase italic text-white">
-          <div className="border-r border-white/30 px-3 py-3">¿Eficaz?</div>
-          <div className="border-r border-white/30 px-3 py-3">Observaciones</div>
-          <div className="border-r border-white/30 px-3 py-3">Acciones</div>
-          <div className="border-r border-white/30 px-3 py-3">Responsable cierre</div>
-          <div className="border-r border-white/30 px-3 py-3">Cargo</div>
-          <div className="border-r border-white/30 px-3 py-3">Seguimiento</div>
-          <div className="px-3 py-3">Cierre</div>
-        </div>
-        <div className="grid min-w-[980px] grid-cols-[0.6fr_1.1fr_1.1fr_1.15fr_0.75fr_0.75fr_0.75fr] bg-slate-50 text-center text-sm text-slate-800">
-          <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.cambioEficaz : ""}</div>
-          <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.observaciones : ""}</div>
-          <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.acciones : ""}</div>
-          <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.nombreCierre : ""}</div>
-          <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.cargoCierre : ""}</div>
-          <div className="border-r border-slate-300 px-3 py-3">{seguimientoAgregado ? seguimiento.fechaSeguimiento : ""}</div>
-          <div className="px-3 py-3">{seguimientoAgregado ? seguimiento.fechaCierre : ""}</div>
-        </div>
       </div>
 
       <div className="flex justify-end">
-        <PrimaryButton onClick={closeFormat}>Cerrar formato</PrimaryButton>
+        <PrimaryButton onClick={closeFormat}>Finalizar como aprobado</PrimaryButton>
       </div>
     </div>
   );
@@ -553,17 +515,29 @@ export function GestionCambioDetalle({
         </div>
       </section>
 
-      {registro.aprobacion?.firma ? (
+      {(registro.aprobaciones ?? []).some((item) => item.firma) ? (
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-black text-slate-950">Firma de aprobación guardada</h3>
-          <Image
-            src={registro.aprobacion.firma}
-            alt={`Firma de ${registro.aprobacion.nombre}`}
-            width={760}
-            height={180}
-            unoptimized
-            className="mt-4 h-24 w-auto max-w-full object-contain object-left"
-          />
+          <h3 className="text-base font-black text-slate-950">Firmas y revisiones registradas</h3>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {(registro.aprobaciones ?? [])
+              .filter((item) => item.firma)
+              .map((item, index) => (
+                <div key={`${item.rolAprobador}-${item.nombre}-${item.fecha}-${index}`} className="border-l-4 border-emerald-700 bg-slate-50 p-4">
+                  <p className="text-xs font-black uppercase text-emerald-800">{roleLabels[item.rolAprobador]}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-950">{item.nombre}</p>
+                  <p className="text-xs font-semibold text-slate-500">{item.cargo} · {item.fecha}</p>
+                  <Image
+                    src={item.firma!}
+                    alt={`Firma de ${item.nombre}`}
+                    width={420}
+                    height={120}
+                    unoptimized
+                    className="mt-3 h-20 w-full object-contain object-left"
+                  />
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{item.observaciones}</p>
+                </div>
+              ))}
+          </div>
         </section>
       ) : null}
 
@@ -612,19 +586,27 @@ export function GestionCambioDetalle({
 
               {canReenterQuality ? (
                 <div className="space-y-4">
-                  <DetailItem label={registro.estado === "RECHAZADO_APROBADOR" ? "Observaciones del aprobador" : "Observaciones de Calidad"} value={registro.aprobacion?.observaciones ?? registro.observacionesCorreccion} />
+                  <DetailItem
+                    label={
+                      registro.estado === "RECHAZADO_LIDER"
+                        ? "Observaciones del líder"
+                        : registro.estado === "RECHAZADO_APROBADOR"
+                          ? "Observaciones del aprobador"
+                          : "Observaciones de Calidad"
+                    }
+                    value={registro.aprobacion?.observaciones ?? registro.observacionesCorreccion}
+                  />
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800">
                       Editar formato
                     </button>
-                    <PrimaryButton onClick={() => onWorkflowAction?.("REENVIAR_CALIDAD")}>{registro.estado === "BORRADOR" ? "Enviar a Calidad" : "Reenviar a Calidad"}</PrimaryButton>
                   </div>
                 </div>
               ) : null}
 
-              {isApproverTurn ? renderAprobacionCambio() : null}
+              {isLeaderApprovalTurn || isApproverTurn ? renderAprobacionCambio() : null}
               {isQualityFollowup ? renderSeguimientoCambio() : null}
-              {registro.estado === "CERRADO" ? <p className="text-sm font-bold text-emerald-700">El formato ya fue cerrado.</p> : null}
+              {registro.estado === "APROBADO" || registro.estado === "CERRADO" ? <p className="text-sm font-bold text-emerald-700">El cambio fue finalizado como aprobado.</p> : null}
               {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
             </div>
           </div>
@@ -633,37 +615,30 @@ export function GestionCambioDetalle({
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-black text-slate-950">Línea de tiempo del registro</h3>
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 overflow-hidden rounded-md border border-slate-200">
           {registro.historial.length > 0 ? (
-            [...registro.historial].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()).map((evento, index) => (
-              <div key={`${evento.fecha}-${evento.accion}`} className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-black text-slate-950">{index + 1}. {actionLabels[evento.accion]}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-700">
-                      {evento.usuario} {evento.rol ? `- ${roleLabels[evento.rol]}` : ""}
-                    </p>
+            <div className="divide-y divide-slate-100">
+              {[...registro.historial]
+                .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+                .map((evento) => (
+                  <div key={`${evento.fecha}-${evento.accion}`} className="grid gap-2 bg-white px-4 py-3 text-sm md:grid-cols-[1.2fr_1fr_12rem] md:items-center">
+                    <div>
+                      <p className="font-bold text-slate-950">{actionLabels[evento.accion]}</p>
+                      <p className="text-xs font-semibold text-slate-500">{evento.usuario}</p>
+                    </div>
+                    <div>
+                      {evento.estadoNuevo ? (
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${estadoBadgeClassName[evento.estadoNuevo]}`}>
+                          {estadoLabels[evento.estadoNuevo]}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500 md:text-right">{formatTimelineDate(evento.fecha)}</p>
                   </div>
-                  <p className="shrink-0 text-xs font-black uppercase text-slate-500">{formatTimelineDate(evento.fecha)}</p>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
-                  {evento.estadoAnterior ? (
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[evento.estadoAnterior]}`}>
-                      {estadoLabels[evento.estadoAnterior]}
-                    </span>
-                  ) : null}
-                  {evento.estadoAnterior && evento.estadoNuevo ? <span className="font-black text-slate-400">→</span> : null}
-                  {evento.estadoNuevo ? (
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[evento.estadoNuevo]}`}>
-                      {estadoLabels[evento.estadoNuevo]}
-                    </span>
-                  ) : null}
-                </div>
-                {evento.observaciones ? <p className="mt-1 text-sm leading-6 text-slate-600">{evento.observaciones}</p> : null}
-              </div>
-            ))
+                ))}
+            </div>
           ) : (
-            <p className="text-sm text-slate-500">Sin movimientos registrados.</p>
+            <p className="p-4 text-sm text-slate-500">Sin movimientos registrados.</p>
           )}
         </div>
       </section>

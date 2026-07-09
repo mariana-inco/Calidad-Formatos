@@ -41,6 +41,7 @@ export function GestionCambiosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     apiRequest<{ usuarios: UsuarioGestionCambio[]; registros: GestionCambio[] }>()
@@ -140,6 +141,7 @@ export function GestionCambiosPage() {
     if (!usuarioActual) return;
     setIsSaving(true);
     setError("");
+    setNotice("");
     try {
       const result = await apiRequest<{ registro: GestionCambio }>({
         operation: "workflow",
@@ -149,6 +151,23 @@ export function GestionCambiosPage() {
         payload,
       });
       setRegistros((items) => items.map((item) => (item.id === result.registro.id ? result.registro : item)));
+      try {
+        const freshData = await apiRequest<{ usuarios: UsuarioGestionCambio[]; registros: GestionCambio[] }>();
+        setRegistros(freshData.registros);
+        setUsuarios(freshData.usuarios);
+      } catch {
+        // La respuesta de la mutación ya contiene el estado confirmado por la base.
+      }
+      const workflowNotices: Partial<Record<GestionCambioWorkflowAction, string>> = {
+        APROBAR_LIDER: `${result.registro.codigo} fue aprobado por el líder y enviado a revisión de Calidad.`,
+        RECHAZAR_LIDER: `${result.registro.codigo} fue rechazado por el líder y devuelto al creador.`,
+        VALIDAR_REMITIR: `Revisión finalizada. ${result.registro.codigo} quedó pendiente de aprobación por ${result.registro.responsableActualNombre ?? "el responsable seleccionado"}.`,
+        SOLICITAR_CORRECCION: `${result.registro.codigo} fue devuelto para ajustes.`,
+        REGISTRAR_APROBACION: `${result.registro.codigo} fue aprobado y retornó a Gestión de Calidad.`,
+        REGISTRAR_RECHAZO: `${result.registro.codigo} fue rechazado y retornó para ajustes.`,
+        CERRAR_FORMATO: `${result.registro.codigo} fue finalizado como aprobado.`,
+      };
+      setNotice(workflowNotices[action] ?? "El estado del registro fue actualizado.");
       closeModal();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No fue posible actualizar el flujo.");
@@ -169,6 +188,14 @@ export function GestionCambiosPage() {
           </button>
         </div>
       ) : null}
+      {notice ? (
+        <div className="fixed bottom-5 right-5 z-[70] max-w-md rounded-md border border-emerald-200 bg-white p-4 shadow-xl" role="status">
+          <p className="text-sm font-bold text-emerald-800">{notice}</p>
+          <button type="button" onClick={() => setNotice("")} className="mt-2 text-xs font-black uppercase text-slate-600 hover:text-slate-950">
+            Cerrar
+          </button>
+        </div>
+      ) : null}
       <div className="mx-auto max-w-7xl space-y-7">
         <GestionCambiosTabs activeTab={activeTab} onChange={setActiveTab} showApproval={canShowApproval} />
 
@@ -184,7 +211,6 @@ export function GestionCambiosPage() {
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black uppercase text-emerald-800">Código: SIG-F006</span>
-                    <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-black uppercase text-blue-800">Base de datos activa</span>
                   </div>
                 </div>
 
@@ -255,6 +281,12 @@ export function GestionCambiosPage() {
           <SolicitudCambioForm
             formId={FORM_ID}
             empresaActiva={empresaActiva}
+            lideresProceso={usuarios.filter(
+              (usuario) => usuario.activo && usuario.empresa === empresaActiva && usuario.rol === "LIDER_PROCESO",
+            )}
+            usuariosResponsables={usuarios.filter(
+              (usuario) => usuario.activo && usuario.empresa === empresaActiva,
+            )}
             initialData={modalMode === "edit" ? selectedRegistro?.detalle : undefined}
             onSubmit={saveSolicitud}
           />

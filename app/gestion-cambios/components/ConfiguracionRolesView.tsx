@@ -41,12 +41,6 @@ const roleConfigs: RoleConfig[] = [
     badgeClassName: "border-blue-200 bg-blue-50 text-blue-800",
   },
   {
-    rol: "LIDER_PROCESO",
-    title: "Líder de proceso",
-    description: "Diligencia la solicitud y corrige el formato cuando Calidad devuelve observaciones.",
-    badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
-  },
-  {
     rol: "APROBADOR_ADICIONAL",
     title: "Aprobadores adicionales",
     description: "Responsables configurables por empresa, proceso o especialidad para aprobar cambios que no pasan por Gerencia.",
@@ -137,7 +131,7 @@ export function ConfiguracionRolesView({
           <div>
             <h1 className="text-lg font-black text-slate-950">Configuración de Roles</h1>
             <p className="mt-1 text-sm leading-5 text-slate-600">
-              Asigna usuarios responsables de cada etapa. La empresa se toma desde la empresa activa de Roca.
+              Configura únicamente los responsables especiales del flujo. Los colaboradores y líderes de proceso se obtienen directamente de Roca.
               <span className="ml-2 font-bold text-blue-700">SIG-F006</span>
             </p>
             <p className="mt-2 inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-800">

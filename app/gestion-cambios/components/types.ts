@@ -1,20 +1,31 @@
 export type GestionCambioEstado =
   | "BORRADOR"
   | "CREADO"
+  | "PENDIENTE_APROBACION_LIDER"
+  | "RECHAZADO_LIDER"
   | "EN_REVISION_CALIDAD"
   | "DEVUELTO_LIDER"
   | "PENDIENTE_APROBACION"
   | "RECHAZADO_APROBADOR"
   | "EN_SEGUIMIENTO_CALIDAD"
+  | "APROBADO"
   | "CERRADO"
   | "VENCIDO";
 
-export type GestionCambioRol = "GESTION_CALIDAD" | "GERENCIA_ADMINISTRATIVA" | "LIDER_PROCESO" | "APROBADOR_ADICIONAL";
+export type GestionCambioRol =
+  | "COLABORADOR"
+  | "GESTION_CALIDAD"
+  | "GERENCIA_ADMINISTRATIVA"
+  | "LIDER_PROCESO"
+  | "APROBADOR_ADICIONAL";
 
 export type GestionCambioWorkflowAction =
   | "CREAR_REGISTRO"
   | "GUARDAR_BORRADOR"
+  | "ENVIAR_LIDER"
   | "ENVIAR_CALIDAD"
+  | "APROBAR_LIDER"
+  | "RECHAZAR_LIDER"
   | "SOLICITAR_CORRECCION"
   | "REENVIAR_CALIDAD"
   | "VALIDAR_REMITIR"
@@ -30,6 +41,7 @@ export type UsuarioGestionCambio = {
   correo: string;
   empresa: GestionCambioEmpresa;
   rol: GestionCambioRol;
+  cargo?: string;
   proceso?: string;
   activo: boolean;
 };
@@ -37,6 +49,7 @@ export type UsuarioGestionCambio = {
 export type PlanActividad = {
   id: number;
   actividades: string;
+  responsableId?: string;
   responsable: string;
   fecha: string;
 };
@@ -108,6 +121,7 @@ export type GestionCambio = {
   validacionCalidad?: string;
   observacionesCorreccion?: string;
   aprobacion?: AprobacionCambioData;
+  aprobaciones?: AprobacionCambioData[];
   seguimiento?: SeguimientoCambioData;
   fechaAprobacion?: string;
   fechaInicioSeguimiento?: string;

@@ -57,10 +57,16 @@ function TableHeadLabel({ icon, children }: { icon: React.ReactNode; children: R
 }
 
 function FechaHora({ registro }: { registro: GestionCambio }) {
-  if (!registro.fechaHora) return <>{registro.fecha}</>;
+  const timestamp = registro.fechaHora ?? registro.historial[0]?.fecha;
 
-  const date = new Date(registro.fechaHora);
-  if (Number.isNaN(date.getTime())) return <>{registro.fecha}</>;
+  if (!timestamp) {
+    return <span className="whitespace-nowrap">{registro.fecha}</span>;
+  }
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return <span className="whitespace-nowrap">{registro.fecha}</span>;
+  }
 
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Bogota",

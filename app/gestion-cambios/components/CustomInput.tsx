@@ -8,7 +8,7 @@ type CustomInputProps = {
   label?: string;
   type?: "text" | "date" | "select" | "textarea";
   instance?: number;
-  options?: readonly string[];
+  options?: readonly (string | { value: string; label: string })[];
   value?: string;
   placeholder?: string;
   icon?: React.ReactNode;
@@ -24,6 +24,8 @@ export function CustomInput({ id, label, type = "text", instance = 0, options = 
   const [isOpen, setIsOpen] = useState(false);
   const [internalValue, setInternalValue] = useState("");
   const selectedValue = value ?? internalValue;
+  const normalizedOptions = options.map((option) => (typeof option === "string" ? { value: option, label: option } : option));
+  const selectedLabel = normalizedOptions.find((option) => option.value === selectedValue)?.label ?? selectedValue;
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -74,7 +76,7 @@ export function CustomInput({ id, label, type = "text", instance = 0, options = 
             }}
             className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-left text-sm font-medium text-slate-950 outline-none transition focus:border-teal-700 focus:bg-white focus:ring-2 focus:ring-teal-100"
           >
-            <span className={selectedValue ? "whitespace-normal break-words" : "text-slate-500"}>{selectedValue || placeholder || "Seleccione una opción"}</span>
+            <span className={selectedValue ? "whitespace-normal break-words" : "text-slate-500"}>{selectedLabel || placeholder || "Seleccione una opción"}</span>
             <ChevronDown className={`size-5 shrink-0 text-slate-600 transition ${isOpen ? "rotate-180" : ""}`} />
           </button>
 
@@ -94,23 +96,23 @@ export function CustomInput({ id, label, type = "text", instance = 0, options = 
               >
                 {placeholder || "Seleccione una opción"}
               </button>
-              {options.map((option) => (
+              {normalizedOptions.map((option) => (
                 <button
-                  key={option}
+                  key={option.value}
                   type="button"
                   role="option"
-                  aria-selected={selectedValue === option}
-                  onClick={() => updateValue(option)}
+                  aria-selected={selectedValue === option.value}
+                  onClick={() => updateValue(option.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
                       setIsOpen(false);
                     }
                   }}
                   className={`block w-full whitespace-normal break-words px-4 py-2 text-left leading-5 transition ${
-                    selectedValue === option ? "bg-teal-50 font-semibold text-teal-900" : "text-slate-950 hover:bg-teal-50"
+                    selectedValue === option.value ? "bg-teal-50 font-semibold text-teal-900" : "text-slate-950 hover:bg-teal-50"
                   }`}
                 >
-                  {option}
+                  {option.label}
                 </button>
               ))}
             </div>

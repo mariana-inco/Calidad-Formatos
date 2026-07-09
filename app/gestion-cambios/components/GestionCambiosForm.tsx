@@ -14,17 +14,20 @@ import {
   tipoCambioField,
   tipoCambioOptions,
 } from "./formData";
-import type { PlanActividad, SolicitudCambioData } from "./types";
+import type { PlanActividad, SolicitudCambioData, UsuarioGestionCambio } from "./types";
 
 type SolicitudCambioFormProps = {
   formId?: string;
   empresaActiva: SolicitudCambioData["empresa"];
+  lideresProceso: UsuarioGestionCambio[];
+  usuariosResponsables: UsuarioGestionCambio[];
   initialData?: SolicitudCambioData;
   onSubmit?: (data: SolicitudCambioData, intent: "draft" | "send-quality") => void;
 };
 
 const emptyPlanForm = {
   actividades: "",
+  responsableId: "",
   responsable: "",
   fecha: "",
 };
@@ -48,7 +51,7 @@ function splitOtherValue(value?: string) {
   return { option, detail: detailParts.join(" - ") };
 }
 
-export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubmit }: SolicitudCambioFormProps) {
+export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usuariosResponsables, initialData, onSubmit }: SolicitudCambioFormProps) {
   const [solicitudValues, setSolicitudValues] = useState<Record<string, string>>(() => ({
     proceso: initialData?.proceso ?? "",
   }));
@@ -59,6 +62,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
     Object.fromEntries(Object.entries(initialData?.analisis ?? {}).map(([key, value]) => [key, splitOtherValue(value).detail])),
   );
   const [tipoCambioSeleccionado, setTipoCambioSeleccionado] = useState("");
+  const [liderProcesoId, setLiderProcesoId] = useState(initialData?.liderProcesoId ?? "");
   const [cualTipoCambio, setCualTipoCambio] = useState("");
   const [tiposCambio, setTiposCambio] = useState<string[]>(() => initialData?.tiposCambio ?? []);
   const [planForm, setPlanForm] = useState(emptyPlanForm);
@@ -109,14 +113,28 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
   const eliminarTipoCambio = (tipoCambio: string) => setTiposCambio((items) => items.filter((item) => item !== tipoCambio));
 
   const actualizarPlanForm = (fieldId: string, value: string) => {
-    if (fieldId === "actividades" || fieldId === "responsable" || fieldId === "fecha") {
+    if (fieldId === "responsable") {
+      const responsable = usuariosResponsables.find((usuario) => usuario.id === value);
+      setPlanForm((form) => ({
+        ...form,
+        responsableId: responsable?.id ?? "",
+        responsable: responsable?.nombre ?? "",
+      }));
+      return;
+    }
+    if (fieldId === "actividades" || fieldId === "fecha") {
       setPlanForm((form) => ({ ...form, [fieldId]: value }));
     }
   };
 
   const agregarPlan = () => {
     if (!planForm.actividades && !planForm.responsable && !planForm.fecha) return;
+    if (!planForm.actividades.trim() || !planForm.responsableId || !planForm.fecha) {
+      setError("Completa la actividad, selecciona un responsable y define la fecha antes de añadirla.");
+      return;
+    }
 
+    setError("");
     if (editingPlanId !== null) {
       setPlanRows((rows) => rows.map((row) => (row.id === editingPlanId ? { id: row.id, ...planForm } : row)));
       setEditingPlanId(null);
@@ -130,6 +148,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
   const editarPlan = (plan: PlanActividad) => {
     setPlanForm({
       actividades: plan.actividades,
+      responsableId: plan.responsableId ?? "",
       responsable: plan.responsable,
       fecha: plan.fecha,
     });
@@ -154,6 +173,15 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const intent = submitter?.value === "send-quality" ? "send-quality" : "draft";
 
+    if (intent === "send-quality" && !liderProcesoId) {
+      setError("Selecciona el líder del proceso antes de enviar el registro a Calidad.");
+      return;
+    }
+    if (intent === "send-quality" && planRows.length === 0) {
+      setError("Agrega al menos una actividad completa al plan de implementación.");
+      return;
+    }
+
     if (isTipoCambioOtros && !cualTipoCambio.trim()) {
       setError("Especifique cuál es el otro tipo de cambio.");
       return;
@@ -177,10 +205,11 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
     );
 
     setError("");
+    const liderProceso = lideresProceso.find((usuario) => usuario.id === liderProcesoId);
     onSubmit?.({
       empresa: empresaActiva,
-      liderProceso: initialData?.liderProceso,
-      liderProcesoId: initialData?.liderProcesoId,
+      liderProceso: liderProceso?.nombre ?? initialData?.liderProceso,
+      liderProcesoId: liderProcesoId || undefined,
       proceso: solicitudValues.proceso ?? "",
       tiposCambio: finalTiposCambio,
       analisis,
@@ -194,7 +223,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
 
         <SectionWrapper title="1. SOLICITUD DEL CAMBIO" icon={<FilePenLine className="size-5" />}>
           <div className="space-y-7">
-            <div className="grid items-start gap-6 md:grid-cols-[0.9fr_1.05fr_1.15fr]">
+            <div className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
               {solicitudFields.map((field) => (
                 <CustomInput
                   key={field.id}
@@ -207,6 +236,25 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
                   onChange={(value) => updateSolicitudValue(field.id, value)}
                 />
               ))}
+
+              <CustomInput
+                id="lider-proceso"
+                label="LÍDER DEL PROCESO"
+                type="select"
+                placeholder="Seleccione el líder responsable"
+                options={lideresProceso.map((usuario) => ({
+                  value: usuario.id,
+                  label: `${usuario.nombre}${usuario.proceso ? ` - ${usuario.proceso}` : ""}`,
+                }))}
+                value={liderProcesoId}
+                onChange={(value) => {
+                  setLiderProcesoId(value);
+                  const lider = lideresProceso.find((usuario) => usuario.id === value);
+                  if (lider?.proceso && !solicitudValues.proceso) {
+                    updateSolicitudValue("proceso", lider.proceso);
+                  }
+                }}
+              />
 
               <CustomInput
                 id={tipoCambioField.id}
@@ -317,9 +365,17 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
                   key={field.id}
                   id={field.id}
                   label={field.label}
-                  type={field.type}
-                  placeholder={field.placeholder}
-                  value={planForm[field.id]}
+                  type={field.id === "responsable" ? "select" : field.type}
+                  placeholder={field.id === "responsable" ? "Seleccione un usuario responsable" : field.placeholder}
+                  options={
+                    field.id === "responsable"
+                      ? usuariosResponsables.map((usuario) => ({
+                          value: usuario.id,
+                          label: `${usuario.nombre}${usuario.cargo ? ` - ${usuario.cargo}` : ""}`,
+                        }))
+                      : undefined
+                  }
+                  value={field.id === "responsable" ? planForm.responsableId : planForm[field.id]}
                   onChange={(value) => actualizarPlanForm(field.id, value)}
                 />
               ))}
@@ -385,7 +441,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, initialData, onSubm
             value="send-quality"
             className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-900"
           >
-            Enviar a Calidad
+            Enviar al líder del proceso
           </button>
         </div>
     </form>

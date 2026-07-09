@@ -327,7 +327,8 @@ export async function createChange(userId: string, data: SolicitudCambioData, in
     throw new Error("Selecciona el líder del proceso antes de enviar el registro a Calidad.");
   }
   const leaderName = leader?.nombre ?? "Pendiente por asignar";
-  const state = intent === "send-quality" ? "PENDIENTE_APROBACION_LIDER" : "BORRADOR";
+  const shouldSendDirectlyToQuality = intent === "send-quality" && actor.rol === "LIDER_PROCESO" && leader?.id === actor.id;
+  const state = intent === "send-quality" ? (shouldSendDirectlyToQuality ? "EN_REVISION_CALIDAD" : "PENDIENTE_APROBACION_LIDER") : "BORRADOR";
 
   const createdId = await prisma.$transaction(async (tx) => {
     const [{ nextNumber }] = await tx.$queryRaw<{ nextNumber: number }[]>`SELECT nextval('secuencia_codigo_gestion_cambios')::int AS "nextNumber"`;
@@ -343,9 +344,9 @@ export async function createChange(userId: string, data: SolicitudCambioData, in
         creatorUserId: actor.id,
         creatorName: actor.nombre,
         currentState: state,
-        currentResponsibleRole: state === "BORRADOR" ? actor.rol : "LIDER_PROCESO",
-        currentResponsibleId: state === "BORRADOR" ? actor.id : leader?.id,
-        currentResponsibleName: state === "BORRADOR" ? actor.nombre : leader?.nombre,
+        currentResponsibleRole: state === "BORRADOR" ? actor.rol : shouldSendDirectlyToQuality ? "GESTION_CALIDAD" : "LIDER_PROCESO",
+        currentResponsibleId: state === "BORRADOR" ? actor.id : shouldSendDirectlyToQuality ? quality?.id : leader?.id,
+        currentResponsibleName: state === "BORRADOR" ? actor.nombre : shouldSendDirectlyToQuality ? quality?.nombre : leader?.nombre,
         changeTypes: JSON.stringify(data.tiposCambio),
         analysis: JSON.stringify(data.analisis),
         implementationPlan: JSON.stringify(data.plan),
@@ -361,15 +362,17 @@ export async function createChange(userId: string, data: SolicitudCambioData, in
         "El usuario crea el registro SIG-F006 en borrador.",
       ),
     });
-    if (state === "PENDIENTE_APROBACION_LIDER") {
+    if (state !== "BORRADOR") {
       await tx.movimientoGestionCambio.create({
         data: historyEntry(
           request.id,
           actor,
-          "ENVIAR_LIDER",
+          shouldSendDirectlyToQuality ? "ENVIAR_CALIDAD" : "ENVIAR_LIDER",
           "BORRADOR",
           state,
-          `El creador diligencia el SIG-F006 y lo envía a ${leader?.nombre} para aprobación del líder del proceso.`,
+          shouldSendDirectlyToQuality
+            ? "El líder del proceso crea el SIG-F006 y lo envía directamente a Gestión de Calidad."
+            : `El creador diligencia el SIG-F006 y lo envía a ${leader?.nombre} para aprobación del líder del proceso.`,
         ),
       });
     }
@@ -399,7 +402,7 @@ export async function updateChange(
       ? findUser({ empresa: current.company as UsuarioGestionCambio["empresa"], rol: "GESTION_CALIDAD" })
       : null;
   if (intent === "send-quality" && !quality) throw new Error("Configura un responsable de Gestión de Calidad antes de enviar.");
-  const leaderId = data.liderProcesoId ?? current.leaderUserId;
+  const leaderId = data.liderProcesoId ?? current.leaderUserId ?? (actor.rol === "LIDER_PROCESO" ? actor.id : undefined);
   const leader = leaderId
     ? findUser({ id: leaderId, empresa: current.company as UsuarioGestionCambio["empresa"], rol: "LIDER_PROCESO" })
     : null;
@@ -407,14 +410,17 @@ export async function updateChange(
     throw new Error("Selecciona el líder del proceso antes de enviar el registro a Calidad.");
   }
   const returnsToQuality = current.currentState === "DEVUELTO_LIDER";
+  const shouldSendDirectlyToQuality = intent === "send-quality" && !returnsToQuality && actor.rol === "LIDER_PROCESO" && leader?.id === actor.id;
   const nextState =
     intent === "send-quality"
       ? returnsToQuality
         ? "EN_REVISION_CALIDAD"
-        : "PENDIENTE_APROBACION_LIDER"
+        : shouldSendDirectlyToQuality
+          ? "EN_REVISION_CALIDAD"
+          : "PENDIENTE_APROBACION_LIDER"
       : current.currentState;
   const action: GestionCambioWorkflowAction =
-    intent === "send-quality" ? (returnsToQuality ? "REENVIAR_CALIDAD" : "ENVIAR_LIDER") : "GUARDAR_BORRADOR";
+    intent === "send-quality" ? (returnsToQuality ? "REENVIAR_CALIDAD" : shouldSendDirectlyToQuality ? "ENVIAR_CALIDAD" : "ENVIAR_LIDER") : "GUARDAR_BORRADOR";
 
   await prisma.$transaction(async (tx) => {
     await tx.registroGestionCambio.update({
@@ -424,9 +430,9 @@ export async function updateChange(
         leaderUserId: leader?.id ?? null,
         leaderName: leader?.nombre ?? "Pendiente por asignar",
         currentState: nextState,
-        currentResponsibleRole: intent === "send-quality" ? (returnsToQuality ? "GESTION_CALIDAD" : "LIDER_PROCESO") : current.currentResponsibleRole,
-        currentResponsibleId: intent === "send-quality" ? (returnsToQuality ? quality?.id : leader?.id) : current.currentResponsibleId,
-        currentResponsibleName: intent === "send-quality" ? (returnsToQuality ? quality?.nombre : leader?.nombre) : current.currentResponsibleName,
+        currentResponsibleRole: intent === "send-quality" ? (returnsToQuality || shouldSendDirectlyToQuality ? "GESTION_CALIDAD" : "LIDER_PROCESO") : current.currentResponsibleRole,
+        currentResponsibleId: intent === "send-quality" ? (returnsToQuality || shouldSendDirectlyToQuality ? quality?.id : leader?.id) : current.currentResponsibleId,
+        currentResponsibleName: intent === "send-quality" ? (returnsToQuality || shouldSendDirectlyToQuality ? quality?.nombre : leader?.nombre) : current.currentResponsibleName,
         changeTypes: JSON.stringify(data.tiposCambio),
         analysis: JSON.stringify(data.analisis),
         implementationPlan: JSON.stringify(data.plan),
@@ -443,7 +449,9 @@ export async function updateChange(
         intent === "send-quality"
           ? returnsToQuality
             ? "El creador o líder responsable corrige el SIG-F006 y lo reenvía a Gestión de Calidad."
-            : "El creador envía el SIG-F006 al líder del proceso para aprobación."
+            : shouldSendDirectlyToQuality
+              ? "El líder del proceso envía el SIG-F006 directamente a Gestión de Calidad."
+              : "El creador envía el SIG-F006 al líder del proceso para aprobación."
           : "El usuario guarda los cambios del borrador SIG-F006.",
       ),
     });
@@ -633,10 +641,12 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
   return toChange((await findChange(id))!);
 }
 
-export async function createUser(_input: Omit<UsuarioGestionCambio, "id" | "activo">) {
+export async function createUser(input: Omit<UsuarioGestionCambio, "id" | "activo">) {
+  void input;
   throw new Error("Los usuarios se administrarán desde ROCA. Esta base solo guarda registros y movimientos de Gestión de Cambios.");
 }
 
-export async function deactivateUser(_id: string) {
+export async function deactivateUser(id: string) {
+  void id;
   throw new Error("Los usuarios se administrarán desde ROCA. Esta base solo guarda registros y movimientos de Gestión de Cambios.");
 }

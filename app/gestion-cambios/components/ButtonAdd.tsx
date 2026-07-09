@@ -16,9 +16,9 @@ export function ButtonAdd({ label, onClick, size = "lg", isDemo = false, variant
       <button
         type="button"
         onClick={onClick}
-        className="inline-flex h-12 min-w-56 items-center justify-center gap-3 rounded-md border-2 border-emerald-900 bg-white px-6 text-sm font-bold text-emerald-950 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700"
+        className="inline-flex h-10 min-w-48 items-center justify-center gap-2 rounded-md border border-blue-600 bg-white px-5 text-sm font-black text-blue-700 shadow-sm transition hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
       >
-        <Plus className="size-5" strokeWidth={2.5} />
+        <Plus className="size-4" strokeWidth={2.5} />
         <span>{label}</span>
       </button>
     );

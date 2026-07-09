@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Plus, Settings, Trash2, UserRound } from "lucide-react";
+import { CheckCircle2, Clock3, Eye, Plus, RotateCw, Settings, Trash2, UserRound, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { GestionCambioEmpresa, GestionCambioRol, UsuarioGestionCambio } from "./types";
 import { roleLabels } from "./workflow";
@@ -55,28 +55,42 @@ function normalizeText(value: string) {
 }
 
 function UserLine({ usuario, onDelete }: { usuario: UsuarioGestionCambio; onDelete: (usuarioId: string) => void }) {
+  const initials = usuario.nombre
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-4 py-3">
-      <div className="min-w-0">
-        <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black uppercase text-slate-950">
-          <UserRound className="size-3.5 shrink-0 text-slate-500" />
-          <span>{usuario.nombre}</span>
-          <span className="font-semibold normal-case text-slate-400">({usuario.correo})</span>
-        </p>
-        <p className="mt-1 pl-6 text-xs font-semibold text-slate-500">
-          {usuario.empresa}
-          {usuario.proceso ? ` - Proceso: ${usuario.proceso}` : ""}
-        </p>
-      </div>
+    <div className="relative rounded-lg border border-slate-200 bg-white p-4 shadow-sm before:absolute before:left-0 before:top-0 before:h-1 before:w-full before:rounded-t-lg before:bg-gradient-to-r before:from-blue-600 before:to-emerald-400">
       <button
         type="button"
         onClick={() => onDelete(usuario.id)}
-        className="inline-grid size-8 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-700"
+        className="absolute right-3 top-3 inline-grid size-7 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-700"
         aria-label="Quitar usuario"
         title="Quitar usuario"
       >
-        <Trash2 className="size-4" />
+        <Trash2 className="size-3.5" />
       </button>
+      <div className="flex gap-4 pt-3">
+        <div className="grid size-12 shrink-0 place-items-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-black text-blue-700">
+          {initials || <UserRound className="size-4" />}
+        </div>
+        <div className="min-w-0 flex-1 text-center">
+          <p className="truncate text-xs font-black uppercase text-[#08142f]">{usuario.nombre}</p>
+          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{roleLabels[usuario.rol]}</p>
+          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">{usuario.empresa}</p>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-black">
+        <span className="inline-flex items-center justify-between rounded-full bg-blue-50 px-2 py-1 text-blue-700"><span className="inline-flex items-center gap-1"><UserRound className="size-3" />Total</span>0</span>
+        <span className="inline-flex items-center justify-between rounded-full bg-amber-50 px-2 py-1 text-amber-700"><span className="inline-flex items-center gap-1"><Clock3 className="size-3" />Pendientes</span>0</span>
+        <span className="inline-flex items-center justify-between rounded-full bg-emerald-50 px-2 py-1 text-emerald-700"><span className="inline-flex items-center gap-1"><CheckCircle2 className="size-3" />Aprobadas</span>0</span>
+        <span className="inline-flex items-center justify-between rounded-full bg-violet-50 px-2 py-1 text-violet-700"><span className="inline-flex items-center gap-1"><RotateCw className="size-3" />En progreso</span>0</span>
+        <span className="col-span-2 inline-flex items-center justify-between rounded-full bg-red-50 px-2 py-1 text-red-700"><span className="inline-flex items-center gap-1"><XCircle className="size-3" />Rechazadas</span>0</span>
+      </div>
     </div>
   );
 }
@@ -124,24 +138,31 @@ export function ConfiguracionRolesView({
   };
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <header className="border-b border-slate-200 px-5 py-4 sm:px-6">
-        <div className="flex items-start gap-3">
-          <Settings className="mt-1 size-4 text-slate-500" />
+    <section className="space-y-5">
+      <header className="overflow-hidden rounded-lg bg-[#111935] text-white shadow-lg shadow-slate-400/30 ring-1 ring-indigo-200">
+        <div className="flex items-center gap-4 bg-[radial-gradient(circle_at_80%_0%,rgba(61,72,140,0.55),transparent_35%)] px-5 py-5 sm:px-7">
+          <div className="grid size-12 shrink-0 place-items-center rounded-md border border-white/15 bg-white/10 text-white shadow-inner">
+            <Settings className="size-6" />
+          </div>
           <div>
-            <h1 className="text-lg font-black text-slate-950">Configuración de Roles</h1>
-            <p className="mt-1 text-sm leading-5 text-slate-600">
-              Configura únicamente los responsables especiales del flujo. Los colaboradores y líderes de proceso se obtienen directamente de Roca.
-              <span className="ml-2 font-bold text-blue-700">SIG-F006</span>
-            </p>
-            <p className="mt-2 inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-800">
-              Empresa activa: {empresaActiva}
+            <h1 className="text-xl font-black text-white sm:text-2xl">Aprobadores y consulta total</h1>
+            <p className="mt-1 text-xs font-medium leading-5 text-slate-200">
+              Usuarios habilitados para aprobación, consulta completa y reasignación.
+              <span className="ml-2 font-black text-white">SIG-F006</span>
             </p>
           </div>
         </div>
       </header>
 
-      <div className="space-y-4 p-5 sm:p-6">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-black text-[#08142f]">Aprobadores</h2>
+            <p className="mt-1 text-xs font-medium text-slate-500">Usuarios que pueden recibir, revisar y aprobar gestiones de cambio.</p>
+          </div>
+          <span className="inline-flex w-fit rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black uppercase text-blue-700">Empresa activa: {empresaActiva}</span>
+        </div>
+        <div className="space-y-4">
         {roleConfigs.map((config) => {
           const usuariosRol = usuarios.filter((usuario) => usuario.empresa === empresaActiva && usuario.rol === config.rol && usuario.activo);
           const isEditing = editingRole === config.rol;
@@ -149,18 +170,18 @@ export function ConfiguracionRolesView({
           return (
             <article
               key={config.rol}
-              className={`rounded-lg border bg-slate-50 p-4 transition ${isEditing ? "border-blue-300 border-dashed bg-white" : "border-slate-200"}`}
+              className={`rounded-lg border bg-white p-4 transition ${isEditing ? "border-blue-300 border-dashed" : "border-slate-200"}`}
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${config.badgeClassName}`}>{config.title}</span>
-                  <p className="mt-2 text-sm leading-5 text-slate-600">{config.description}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{config.description}</p>
 
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
                     {usuariosRol.length > 0 ? (
                       usuariosRol.map((usuario) => <UserLine key={usuario.id} usuario={usuario} onDelete={onDeleteUsuario} />)
                     ) : (
-                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500">
+                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 lg:col-span-3">
                         <UserRound className="size-3.5" />
                         Sin usuarios asignados
                       </p>
@@ -171,14 +192,14 @@ export function ConfiguracionRolesView({
                 <button
                   type="button"
                   onClick={() => openRoleEditor(config.rol)}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-blue-600 hover:text-blue-700"
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-black text-[#08142f] transition hover:border-blue-600 hover:text-blue-700"
                 >
                   {isEditing ? "Cancelar" : "Cambiar"}
                 </button>
               </div>
 
               {isEditing ? (
-                <div className="mt-4 rounded-lg border border-dashed border-blue-200 bg-white p-4">
+                <div className="mt-4 rounded-lg border border-dashed border-blue-200 bg-[#f8fbff] p-4">
                   <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
                     <label className="block">
                       <span className="text-xs font-black uppercase tracking-wide text-slate-600">Nombre</span>
@@ -251,6 +272,7 @@ export function ConfiguracionRolesView({
             ))}
           </select>
         </article>
+        </div>
       </div>
     </section>
   );

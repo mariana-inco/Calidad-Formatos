@@ -7,7 +7,7 @@ import { CustomInput } from "./CustomInput";
 import { SectionWrapper } from "./SectionWrapper";
 import {
   analisisFields,
-  analisisOptions,
+  analisisGuideQuestions,
   planFields,
   procesoOptions,
   solicitudFields,
@@ -19,6 +19,7 @@ import type { PlanActividad, SolicitudCambioData, UsuarioGestionCambio } from ".
 type SolicitudCambioFormProps = {
   formId?: string;
   empresaActiva: SolicitudCambioData["empresa"];
+  usuarioActual?: UsuarioGestionCambio;
   lideresProceso: UsuarioGestionCambio[];
   usuariosResponsables: UsuarioGestionCambio[];
   initialData?: SolicitudCambioData;
@@ -43,26 +44,22 @@ const analisisIcons: Record<string, React.ReactNode> = {
   "aspectos-impactos-ambientales": <Leaf className="size-3.5" />,
 };
 
-const OTRO_OPTIONS = new Set(["OTRO", "OTROS"]);
-
 function splitOtherValue(value?: string) {
   if (!value?.startsWith("OTRO - ") && !value?.startsWith("OTROS - ")) return { option: value ?? "", detail: "" };
   const [option, ...detailParts] = value.split(" - ");
   return { option, detail: detailParts.join(" - ") };
 }
 
-export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usuariosResponsables, initialData, onSubmit }: SolicitudCambioFormProps) {
+export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lideresProceso, usuariosResponsables, initialData, onSubmit }: SolicitudCambioFormProps) {
+  const initialLeaderId = usuarioActual?.rol === "LIDER_PROCESO" && initialData?.liderProcesoId === usuarioActual.id ? "" : initialData?.liderProcesoId ?? "";
   const [solicitudValues, setSolicitudValues] = useState<Record<string, string>>(() => ({
     proceso: initialData?.proceso ?? "",
   }));
   const [analisisValues, setAnalisisValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(Object.entries(initialData?.analisis ?? {}).map(([key, value]) => [key, splitOtherValue(value).option])),
-  );
-  const [analisisOtrosValues, setAnalisisOtrosValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(Object.entries(initialData?.analisis ?? {}).map(([key, value]) => [key, splitOtherValue(value).detail])),
+    Object.fromEntries(Object.entries(initialData?.analisis ?? {}).map(([key, value]) => [key, splitOtherValue(value).detail || value])),
   );
   const [tipoCambioSeleccionado, setTipoCambioSeleccionado] = useState("");
-  const [liderProcesoId, setLiderProcesoId] = useState(initialData?.liderProcesoId ?? "");
+  const [liderProcesoId, setLiderProcesoId] = useState(initialLeaderId);
   const [cualTipoCambio, setCualTipoCambio] = useState("");
   const [tiposCambio, setTiposCambio] = useState<string[]>(() => initialData?.tiposCambio ?? []);
   const [planForm, setPlanForm] = useState(emptyPlanForm);
@@ -70,6 +67,10 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const isTipoCambioOtros = tipoCambioSeleccionado === "OTROS";
+  const isCurrentUserLeader = usuarioActual?.rol === "LIDER_PROCESO";
+  const leaderOptions = isCurrentUserLeader
+    ? lideresProceso.filter((usuario) => usuario.id !== usuarioActual.id)
+    : lideresProceso;
 
   const updateSolicitudValue = (fieldId: string, value: string) => {
     setSolicitudValues((current) => ({ ...current, [fieldId]: value }));
@@ -77,9 +78,6 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
 
   const updateAnalisisValue = (fieldId: string, value: string) => {
     setAnalisisValues((current) => ({ ...current, [fieldId]: value }));
-    if (!OTRO_OPTIONS.has(value)) {
-      setAnalisisOtrosValues((current) => ({ ...current, [fieldId]: "" }));
-    }
   };
 
   const agregarTipoCambio = () => {
@@ -173,7 +171,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const intent = submitter?.value === "send-quality" ? "send-quality" : "draft";
 
-    if (intent === "send-quality" && !liderProcesoId) {
+    if (intent === "send-quality" && !liderProcesoId && !isCurrentUserLeader) {
       setError("Selecciona el líder del proceso antes de enviar el registro a Calidad.");
       return;
     }
@@ -189,18 +187,9 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
 
     const pendingTipoCambio = getPendingTipoCambio();
     const finalTiposCambio = pendingTipoCambio && !tiposCambio.includes(pendingTipoCambio) ? [...tiposCambio, pendingTipoCambio] : tiposCambio;
-    const missingOtherField = analisisFields.find((field) => OTRO_OPTIONS.has(analisisValues[field.id] ?? "") && !analisisOtrosValues[field.id]?.trim());
-
-    if (missingOtherField) {
-      setError(`Especifique cuál es el otro valor para ${missingOtherField.label}.`);
-      return;
-    }
-
     const analisis = Object.fromEntries(
       analisisFields.map((field) => {
-        const value = analisisValues[field.id] ?? "";
-        const detail = analisisOtrosValues[field.id]?.trim();
-        return [field.id, OTRO_OPTIONS.has(value) && detail ? `${value} - ${detail}` : value];
+        return [field.id, (analisisValues[field.id] ?? "").trim()];
       }),
     );
 
@@ -208,7 +197,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
     const liderProceso = lideresProceso.find((usuario) => usuario.id === liderProcesoId);
     onSubmit?.({
       empresa: empresaActiva,
-      liderProceso: liderProceso?.nombre ?? initialData?.liderProceso,
+      liderProceso: liderProceso?.nombre ?? initialData?.liderProceso ?? (isCurrentUserLeader ? usuarioActual?.nombre : undefined),
       liderProcesoId: liderProcesoId || undefined,
       proceso: solicitudValues.proceso ?? "",
       tiposCambio: finalTiposCambio,
@@ -218,7 +207,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
   };
 
   return (
-    <form id={formId} onSubmit={submitSolicitud} className="space-y-9 text-slate-950">
+    <form id={formId} onSubmit={submitSolicitud} className="space-y-5 text-[#08142f]">
         {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
 
         <SectionWrapper title="1. SOLICITUD DEL CAMBIO" icon={<FilePenLine className="size-5" />}>
@@ -239,10 +228,10 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
 
               <CustomInput
                 id="lider-proceso"
-                label="LÍDER DEL PROCESO"
+                label={isCurrentUserLeader ? "ASIGNAR A OTRO LÍDER RESPONSABLE" : "LÍDER DEL PROCESO"}
                 type="select"
-                placeholder="Seleccione el líder responsable"
-                options={lideresProceso.map((usuario) => ({
+                placeholder={isCurrentUserLeader ? "Opcional: seleccione otro líder" : "Seleccione el líder responsable"}
+                options={leaderOptions.map((usuario) => ({
                   value: usuario.id,
                   label: `${usuario.nombre}${usuario.proceso ? ` - ${usuario.proceso}` : ""}`,
                 }))}
@@ -289,7 +278,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
 
             {tiposCambio.length > 0 ? (
               <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-                <div className="grid grid-cols-[1fr_5rem] bg-emerald-900 text-xs font-bold italic uppercase text-white">
+                <div className="grid grid-cols-[1fr_5rem] bg-[#eef3f8] text-xs font-black text-slate-700">
                   <div className="px-4 py-2 text-center">TIPO DE CAMBIO</div>
                   <div className="border-l border-emerald-800 px-3 py-2 text-center">ACCIÓN</div>
                 </div>
@@ -301,7 +290,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
                         type="button"
                         aria-label="Editar tipo de cambio"
                         onClick={() => editarTipoCambio(tipoCambio)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                        className="grid size-7 place-items-center rounded-md bg-blue-600 text-white transition hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                       >
                         <Pencil className="size-3.5" />
                       </button>
@@ -309,7 +298,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
                         type="button"
                         aria-label="Eliminar tipo de cambio"
                         onClick={() => eliminarTipoCambio(tipoCambio)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                        className="grid size-7 place-items-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -332,20 +321,17 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
                   type={field.type}
                   placeholder={field.placeholder}
                   icon={analisisIcons[field.id]}
-                  options={analisisOptions[field.id as keyof typeof analisisOptions] ?? []}
                   value={analisisValues[field.id] ?? ""}
                   onChange={(value) => updateAnalisisValue(field.id, value)}
                 />
-                {OTRO_OPTIONS.has(analisisValues[field.id] ?? "") ? (
-                  <CustomInput
-                    id={`${field.id}-otro`}
-                    label="Especifique cuál"
-                    type="text"
-                    placeholder="Describa el otro valor"
-                    value={analisisOtrosValues[field.id] ?? ""}
-                    onChange={(value) => setAnalisisOtrosValues((current) => ({ ...current, [field.id]: value }))}
-                  />
-                ) : null}
+                <div className="rounded-md border border-slate-200 bg-[#f8fbff] px-3 py-2 text-xs leading-5 text-slate-600">
+                  <p className="font-black text-[#08142f]">Preguntas guía para redactar:</p>
+                  <ul className="mt-1 space-y-1">
+                    {(analisisGuideQuestions[field.id as keyof typeof analisisGuideQuestions] ?? []).map((question) => (
+                      <li key={question}>{question}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             ))}
           </div>
@@ -354,12 +340,12 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
         <SectionWrapper title="3. PLAN PARA IMPLEMENTACIÓN DEL CAMBIO">
           <div className="space-y-8">
             <div className="flex flex-col items-center justify-center gap-3 text-center lg:flex-row">
-              <p className="text-sm font-bold italic text-slate-950">
+              <p className="text-sm font-bold italic text-[#08142f]">
                 Escriba las actividades necesarias para la implementación del cambio propuesto, incluidas las actividades para control de riesgos SST y de impactos ambientales, luego oprima el botón
               </p>
             </div>
 
-            <div className="grid items-end gap-6 lg:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.48fr)_11.5rem]">
+            <div className="grid items-end gap-5 lg:grid-cols-[minmax(18rem,1.2fr)_minmax(16rem,0.8fr)_minmax(12rem,0.45fr)]">
               {planFields.map((field) => (
                 <CustomInput
                   key={field.id}
@@ -387,7 +373,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
 
             {planRows.length > 0 ? (
               <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-                <div className="grid grid-cols-[1.4fr_1fr_9rem_5rem] bg-emerald-900 text-xs font-bold italic uppercase text-white">
+                <div className="grid grid-cols-[1.4fr_1fr_9rem_5rem] bg-[#eef3f8] text-xs font-black text-slate-700">
                   <div className="px-4 py-2 text-center">ACTIVIDADES</div>
                   <div className="border-l border-emerald-800 px-4 py-2 text-center">RESPONSABLE</div>
                   <div className="border-l border-emerald-800 px-4 py-2 text-center">FECHA</div>
@@ -396,7 +382,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
                 {planRows.map((plan) => (
                   <div
                     key={plan.id}
-                    className="grid grid-cols-[1.4fr_1fr_9rem_5rem] items-center border-t border-slate-200 text-sm text-slate-950 even:bg-slate-50"
+                    className="grid grid-cols-[1.4fr_1fr_9rem_5rem] items-center border-t border-slate-200 text-sm text-[#08142f] even:bg-slate-50"
                   >
                     <div className="px-4 py-2 text-center">{plan.actividades}</div>
                     <div className="border-l border-slate-200 px-4 py-2 text-center">{plan.responsable}</div>
@@ -406,7 +392,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
                         type="button"
                         aria-label="Editar fila del plan"
                         onClick={() => editarPlan(plan)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                        className="grid size-7 place-items-center rounded-md bg-blue-600 text-white transition hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                       >
                         <Pencil className="size-3.5" />
                       </button>
@@ -414,7 +400,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
                         type="button"
                         aria-label="Eliminar fila del plan"
                         onClick={() => eliminarPlan(plan.id)}
-                        className="grid size-7 place-items-center rounded-full bg-emerald-600 text-white transition hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                        className="grid size-7 place-items-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -431,7 +417,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
             type="submit"
             name="intent"
             value="draft"
-            className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-black text-slate-600 transition hover:bg-slate-50"
           >
             Guardar borrador
           </button>
@@ -439,9 +425,9 @@ export function SolicitudCambioForm({ formId, empresaActiva, lideresProceso, usu
             type="submit"
             name="intent"
             value="send-quality"
-            className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-900"
+            className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-6 text-sm font-black text-white shadow-sm transition hover:bg-blue-700"
           >
-            Enviar al líder del proceso
+            {isCurrentUserLeader && !liderProcesoId ? "Enviar a Calidad" : "Enviar al líder del proceso"}
           </button>
         </div>
     </form>

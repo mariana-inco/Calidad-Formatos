@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, CircleDot, Eye, Hash, Pencil, Tags, UserCheck, UserRound, Workflow } from "lucide-react";
+import { CalendarDays, CircleDot, Eye, Pencil, Tags, UserCheck, UserRound, Workflow } from "lucide-react";
 import type { GestionCambio } from "./types";
 import { estadoBadgeClassName, estadoLabels, getEffectiveEstado, roleLabels } from "./workflow";
 
@@ -27,7 +27,7 @@ function EstadoBadge({
   };
 
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadge.className}`}>
+    <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase ${estadoBadge.className}`}>
       {estadoBadge.label}
     </span>
   );
@@ -40,9 +40,10 @@ function ActionButton({ label, children, onClick }: { label: string; children: R
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="inline-grid size-8 place-items-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+      className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-600 hover:text-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
     >
       {children}
+      <span className="hidden xl:inline">{label}</span>
     </button>
   );
 }
@@ -102,9 +103,9 @@ export function HistorialGestionCambiosTable({
 }: HistorialGestionCambiosTableProps) {
   if (registros.length === 0) {
     return (
-      <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-        <h2 className="text-lg font-black text-slate-950">{emptyTitle}</h2>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">{emptyDescription}</p>
+      <section className="rounded-lg border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <h2 className="text-base font-black text-[#08142f]">{emptyTitle}</h2>
+        <p className="mx-auto mt-2 max-w-xl text-xs leading-6 text-slate-500">{emptyDescription}</p>
       </section>
     );
   }
@@ -112,18 +113,17 @@ export function HistorialGestionCambiosTable({
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
-          <thead className="bg-[#f4f7fb] text-[11px] font-black uppercase tracking-wide text-slate-600">
+        <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
+          <thead className="bg-[#eef3f8] text-[11px] font-black text-slate-700">
             <tr className="border-y border-slate-200">
-              <th className="px-5 py-4"><TableHeadLabel icon={<Hash className="size-3.5" />}>Código</TableHeadLabel></th>
-              <th className="px-5 py-4"><TableHeadLabel icon={<CalendarDays className="size-3.5" />}>Fecha</TableHeadLabel></th>
-              <th className="px-5 py-4"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Empresa</TableHeadLabel></th>
-              <th className="px-5 py-4"><TableHeadLabel icon={<UserRound className="size-3.5" />}>Líder de proceso</TableHeadLabel></th>
-              <th className="px-5 py-4"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Proceso</TableHeadLabel></th>
-              <th className="px-5 py-4"><TableHeadLabel icon={<Tags className="size-3.5" />}>Tipo de cambio</TableHeadLabel></th>
-              <th className="px-5 py-4"><TableHeadLabel icon={<CircleDot className="size-3.5" />}>Estado</TableHeadLabel></th>
-              <th className="px-5 py-4"><TableHeadLabel icon={<UserCheck className="size-3.5" />}>Responsable actual</TableHeadLabel></th>
-              <th className="px-5 py-4 text-center">Acción</th>
+              <th className="px-4 py-4"><TableHeadLabel icon={<CalendarDays className="size-3.5" />}>Fecha</TableHeadLabel></th>
+              <th className="px-4 py-4"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Empresa</TableHeadLabel></th>
+              <th className="px-4 py-4"><TableHeadLabel icon={<UserRound className="size-3.5" />}>Líder de proceso</TableHeadLabel></th>
+              <th className="px-4 py-4"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Proceso</TableHeadLabel></th>
+              <th className="px-4 py-4"><TableHeadLabel icon={<Tags className="size-3.5" />}>Tipo de cambio</TableHeadLabel></th>
+              <th className="px-4 py-4"><TableHeadLabel icon={<CircleDot className="size-3.5" />}>Estado</TableHeadLabel></th>
+              <th className="px-4 py-4"><TableHeadLabel icon={<UserCheck className="size-3.5" />}>Responsable actual</TableHeadLabel></th>
+              <th className="px-4 py-4 text-center">Detalles</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -131,16 +131,15 @@ export function HistorialGestionCambiosTable({
               const showEdit = Boolean(onEdit && canEdit?.(registro));
 
               return (
-                <tr key={registro.id} className="text-slate-800 transition hover:bg-blue-50/40">
-                  <td className="px-5 py-5 font-black text-emerald-900">{registro.codigo}</td>
-                  <td className="px-5 py-5"><FechaHora registro={registro} /></td>
-                  <td className="px-5 py-5 font-bold text-slate-950">{registro.empresa}</td>
-                  <td className="px-5 py-5 font-black uppercase text-slate-950">{registro.liderProceso}</td>
-                  <td className="px-5 py-5">{registro.proceso}</td>
-                  <td className="max-w-xs px-5 py-5 leading-6">{registro.tipoCambio}</td>
-                  <td className="px-5 py-4"><EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} /></td>
-                  <td className="px-5 py-5 font-semibold">{registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</td>
-                  <td className="px-5 py-4">
+                <tr key={registro.id} className="border-l-4 border-l-amber-400 text-slate-700 transition hover:bg-blue-50/40">
+                  <td className="px-4 py-4"><FechaHora registro={registro} /></td>
+                  <td className="px-4 py-4 font-bold text-[#08142f]">{registro.empresa}</td>
+                  <td className="px-4 py-4 font-black uppercase text-[#08142f]">{registro.liderProceso}</td>
+                  <td className="px-4 py-4">{registro.proceso}</td>
+                  <td className="max-w-xs px-4 py-4 leading-6">{registro.tipoCambio}</td>
+                  <td className="px-4 py-4"><EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} /></td>
+                  <td className="px-4 py-4 font-semibold">{registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</td>
+                  <td className="px-4 py-4">
                     <div className="flex items-center justify-center gap-2">
                       <ActionButton label="Ver detalle" onClick={() => onView(registro)}><Eye className="size-4" /></ActionButton>
                       {showEdit ? <ActionButton label="Editar formato" onClick={() => onEdit?.(registro)}><Pencil className="size-4" /></ActionButton> : null}
@@ -161,8 +160,7 @@ export function HistorialGestionCambiosTable({
             <article key={registro.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wide text-slate-500">{registro.codigo}</p>
-                  <h3 className="mt-1 text-base font-bold text-slate-950">{registro.liderProceso}</h3>
+                  <h3 className="text-base font-bold text-slate-950">{registro.liderProceso}</h3>
                 </div>
                 <EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} />
               </div>

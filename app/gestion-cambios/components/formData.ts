@@ -46,111 +46,104 @@ export const analisisFields = [
   {
      id: "documentos", 
      label: "DOCUMENTOS",
-     type: "select",
-     placeholder: "Seleccione una opción...",
+     type: "textarea",
+     placeholder: "Describa los documentos afectados, actualizaciones requeridas o impactos documentales del cambio.",
    },
 
   { 
     id: "procesos",
     label: "PROCESOS",
-    type: "select",
-    placeholder: "Seleccione una opción...",
+    type: "textarea",
+    placeholder: "Describa los procesos, productos o servicios afectados por el cambio.",
     },
 
   { id: "personas",
     label: "PERSONAS",
-    type: "select",
-    placeholder: "Seleccione una opción...",
+    type: "textarea",
+    placeholder: "Describa los cambios en personal, responsabilidades, autoridad o capacitación.",
    },
 
   { id: "instalaciones",
     label: "INSTALACIONES",
-    type: "select",
-    placeholder: "Seleccione una opción..." 
+    type: "textarea",
+    placeholder: "Describa los cambios locativos, instalaciones, licencias o servicios requeridos." 
   },
 
   { id: "tecnologia-maquinaria",
     label: "TECNOLOGIA / MAQUINARIA",
-    type: "select",
-    placeholder: "Seleccione una opción..." },
+    type: "textarea",
+    placeholder: "Describa los cambios en tecnología, maquinaria, equipos o pruebas piloto." },
   {
     id: "riesgos-organizacionales",
     label: "RIESGOS ORGANIZACIONALES",
-    type: "select",
-    placeholder: "Identificación de riesgos del negocio...",
+    type: "textarea",
+    placeholder: "Describa los riesgos u oportunidades del sistema de gestión asociados al cambio.",
   },
   {
     id: "peligros-riesgos",
     label: "PELIGROS / RIESGOS (SST)",
-    type: "select",
-    placeholder: "Análisis de seguridad y salud en el trabajo...",
+    type: "textarea",
+    placeholder: "Describa los peligros, riesgos SST, valoración y controles antes, durante y después del cambio.",
   },
   {
     id: "aspectos-impactos-ambientales",
     label: "ASPECTOS / IMPACTOS AMBIENTALES",
-    type: "select",
-    placeholder: "Análisis de impacto ambiental...",
+    type: "textarea",
+    placeholder: "Describa aspectos, impactos ambientales, valoración y controles antes, durante y después del cambio.",
   },
 ] as const;
 
-export const analisisOptions = {
+export const analisisGuideQuestions = {
   documentos: [
-    "Se debe crear o actualizar documentación",
-    "Afecta la estructura organizacional",
-    "Afecta el Plan de Emergencias",
-    "Afecta la descripción de cargo / rol establecidos",
-    "OTRO",
+    "¿Se debe crear o actualizar documentación?",
+    "¿Afecta la estructura organizacional?",
+    "¿Afecta el Plan de Emergencias?",
+    "¿Afecta la descripción de cargo o rol establecidos?",
   ],
 
   procesos: [
-    "Incluye creación de nuevos o modificación en procesos",
-    "Afecta en el proceso de inducción",
-    "Afecta el alcance del Sistema de gestión",
-    "Requiere de nuevos controles operacionales",
-    "OTRO",
+    "¿Incluye creación de nuevos procesos o modificación de procesos existentes?",
+    "¿Afecta el proceso de inducción?",
+    "¿Afecta el alcance del Sistema de Gestión?",
+    "¿Requiere nuevos controles operacionales?",
   ],
 
   personas: [
-    "Se debe contratar personal",
-    "Cambia el modelo de contratación",
-    "Se modifican funciones / responsabilidades / autoridad",
-    "Se modifica el Programa de Capacitación",
-    "OTRO",
+    "¿Se debe contratar personal?",
+    "¿Cambia el modelo de contratación?",
+    "¿Se modifican funciones, responsabilidades o autoridad?",
+    "¿Se modifica el programa de capacitación?",
   ],
 
   instalaciones: [
-    "Remodelación de instalaciones existentes",
-    "Nuevas instalaciones",
-    "Requiere licenciamiento",
-    "Incluye instalación de servicios públicos",
-    "OTRO",
+    "¿Hay remodelación de instalaciones existentes?",
+    "¿Se requieren nuevas instalaciones?",
+    "¿Requiere licenciamiento?",
+    "¿Incluye instalación de servicios públicos?",
   ],
 
   "tecnologia-maquinaria": [
-    "Incluye nueva tecnología",
-    "Se va a realizar una prueba piloto antes de implementación plena",
-    "OTRO",
+    "¿Incluye nueva tecnología?",
+    "¿Se va a realizar una prueba piloto antes de la implementación plena?",
   ],
 
   "riesgos-organizacionales": [
-    "Se generaron nuevos o modifican riesgos y oportunidades de sistema de gestión",
-    "OTRO",
+    "¿Se generan nuevos riesgos u oportunidades del sistema de gestión?",
+    "¿Se modifican riesgos u oportunidades ya identificados?",
   ],
 
   "peligros-riesgos": [
-    "Nuevos peligros",
-    "Se debe implementar nuevos controles",
-    "Continúa el mismo peligro pero cambia la valoración del nivel de riesgo",
-    "Afecta los controles existentes",
-    "OTRO",
+    "¿Se generan nuevos peligros?",
+    "¿Se deben implementar nuevos controles?",
+    "¿Continúa el mismo peligro pero cambia la valoración del nivel de riesgo?",
+    "¿Afecta los controles existentes?",
   ],
 
   "aspectos-impactos-ambientales": [
-    "Estaba contemplada la actividad con sus aspectos / impactos",
-    "Se debe implementar nuevos controles",
-    "Continúa el mismo aspecto pero cambia la valoración del nivel de impacto",
-    "Afecta los controles existentes",
-    "OTRO",
+    "¿La actividad ya estaba contemplada con sus aspectos e impactos?",
+    "¿Se deben implementar nuevos controles ambientales?",
+    "¿Continúa el mismo aspecto pero cambia la valoración del nivel de impacto?",
+    "¿Afecta los controles existentes?",
   ],
 } as const;
 

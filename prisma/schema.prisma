@@ -6,7 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
+model UsuarioGestionCambio {
   id        String   @id @default(cuid())
   name      String
   email     String
@@ -20,17 +20,17 @@ model User {
 
   @@unique([email, company, role])
   @@index([company, role, active])
-  @@map("users")
+  @@map("usuarios_gestion_cambios")
 }
 
-model AppCounter {
+model ConsecutivoGestionCambio {
   key   String @id
   value Int    @default(0)
 
-  @@map("app_counters")
+  @@map("consecutivos_gestion_cambios")
 }
 
-model ChangeRequest {
+model RegistroGestionCambio {
   id                     String   @id @default(cuid())
   code                   String   @unique
   company                String
@@ -58,9 +58,9 @@ model ChangeRequest {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  approvals ChangeApproval[]
-  followups ChangeFollowup[]
-  history   ChangeHistory[]
+  aprobaciones AprobacionGestionCambio[]
+  seguimientos SeguimientoGestionCambio[]
+  historial    HistorialGestionCambio[]
 
   @@index([company])
   @@index([process])
@@ -68,10 +68,10 @@ model ChangeRequest {
   @@index([leaderUserId])
   @@index([currentState])
   @@index([currentResponsibleRole, currentResponsibleId])
-  @@map("change_requests")
+  @@map("registros_gestion_cambios")
 }
 
-model ChangeApproval {
+model AprobacionGestionCambio {
   id              String   @id @default(cuid())
   changeRequestId String
   approverUserId  String?
@@ -84,14 +84,14 @@ model ChangeApproval {
   approvedAt      DateTime
   createdAt       DateTime @default(now())
 
-  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  registroGestionCambio RegistroGestionCambio @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
 
   @@index([changeRequestId])
   @@index([approverUserId])
-  @@map("change_approvals")
+  @@map("aprobaciones_gestion_cambios")
 }
 
-model ChangeFollowup {
+model SeguimientoGestionCambio {
   id                String   @id @default(cuid())
   changeRequestId   String
   responsibleUserId String?
@@ -104,14 +104,14 @@ model ChangeFollowup {
   closedAt          DateTime
   createdAt         DateTime @default(now())
 
-  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  registroGestionCambio RegistroGestionCambio @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
 
   @@index([changeRequestId])
   @@index([responsibleUserId])
-  @@map("change_followups")
+  @@map("seguimientos_gestion_cambios")
 }
 
-model ChangeHistory {
+model HistorialGestionCambio {
   id                       String   @id @default(cuid())
   changeRequestId          String
   fromState                String?
@@ -126,64 +126,9 @@ model ChangeHistory {
   selectedApproverName     String?
   createdAt                DateTime @default(now())
 
-  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  registroGestionCambio RegistroGestionCambio @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
 
   @@index([changeRequestId])
   @@index([createdAt])
-  @@map("change_history")
-}
-
-model SolicitudCompra {
-  id                   Int                    @id @default(autoincrement())
-  numero_solicitud     String                 @unique
-  id_usuario           String
-  id_aprobador         String?
-  centro_operacion     String
-  tipo_documento       String?
-  fecha_aprobacion     DateTime?
-  referencia_documento String
-  estado               EstadoSolicitudCompra @default(PENDIENTE)
-  notas                String
-  observacion          String?
-  cotizacion_adjunto   Json?
-  created_at           DateTime               @default(now())
-  updated_at           DateTime
-  SolicitudCompraItem  SolicitudCompraItem[]
-
-  @@index([estado])
-  @@index([id_aprobador])
-  @@index([id_usuario])
-  @@index([numero_solicitud])
-}
-
-model SolicitudCompraItem {
-  id                  Int             @id @default(autoincrement())
-  solicitud_compra_id Int
-  item                String
-  centro_operacion    String?
-  centro_costo        String
-  bodega              String?
-  motivo              String?
-  unidad_negocio      String?
-  descripcion_detalle String
-  unidad              String
-  es_servicio         Boolean         @default(false)
-  notas               String?
-  activo              Boolean         @default(true)
-  created_at          DateTime        @default(now())
-  updated_at          DateTime
-  cantidad_solicitada Int             @default(1)
-  precio_sugerido     String?
-  SolicitudCompra     SolicitudCompra @relation(fields: [solicitud_compra_id], references: [id], onDelete: Cascade)
-
-  @@index([activo])
-  @@index([solicitud_compra_id])
-}
-
-enum EstadoSolicitudCompra {
-  PENDIENTE
-  EN_PROGRESO
-  APROBADA
-  RECHAZADA
-  COMPLETADA
+  @@map("historial_gestion_cambios")
 }

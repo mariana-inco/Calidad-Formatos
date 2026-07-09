@@ -3,11 +3,13 @@ export type TipoHallazgo = "" | "No Conformidad" | "Oportunidad de Mejora" | "Sa
 export type ReporteEstado =
   | "Borrador"
   | "En revisión de Calidad"
-  | "Requiere corrección"
-  | "Aprobada por Calidad"
-  | "En cierre por líder"
-  | "Cierre enviado a Calidad"
-  | "Cerrado";
+  | "Devuelto para corrección"
+  | "Aprobado por Calidad"
+  | "En implementación"
+  | "Pendiente de cierre por líder"
+  | "En validación de eficacia"
+  | "Cerrado"
+  | "No eficaz / Requiere nueva acción";
 
 export type ReporteAccionFlujo =
   | "enviar-calidad"
@@ -29,6 +31,41 @@ export type ReporteAccion = {
   fechaCierre: string;
   observacion: string;
   evidencia: string | null;
+  evidenciaNombre?: string;
+  justificacionSinEvidencia?: string;
+};
+
+export type ReporteHistorial = {
+  id: string;
+  fecha: string;
+  usuario: string;
+  rol: string;
+  accion: string;
+  estadoAnterior: ReporteEstado | null;
+  estadoNuevo: ReporteEstado;
+  observacion: string;
+};
+
+export type ReporteRevision = {
+  id: string;
+  usuario: string;
+  cargo: string;
+  rol: string;
+  decision: string;
+  comprende: boolean;
+  observacion: string;
+  firma: string;
+  fecha: string;
+};
+
+export type ValidacionEficacia = {
+  eficaz: boolean | null;
+  fecha: string;
+  observacion: string;
+  evidencia: string | null;
+  evidenciaNombre: string;
+  decision: "" | "Cerrar reporte" | "Reabrir acción" | "Crear nueva acción";
+  usuario: string;
 };
 
 export type ReporteAccionesData = {
@@ -50,6 +87,9 @@ export type ReporteAccionesData = {
   fechaSeguimientoEficacia: string;
   observacionesCalidad: string;
   acciones: ReporteAccion[];
+  historial?: ReporteHistorial[];
+  revisiones?: ReporteRevision[];
+  validacionEficacia?: ValidacionEficacia;
 };
 
 export type ReporteAccionesRol = "Líder de proceso" | "Calidad";

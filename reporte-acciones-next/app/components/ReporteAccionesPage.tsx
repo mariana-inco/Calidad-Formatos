@@ -1,8 +1,9 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
-import { ConfiguracionReporteAccionesView } from "./ConfiguracionReporteAccionesView";
+import { FileDown, Plus, Send, X } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import { CalidadReporteAccionesView } from "./CalidadReporteAccionesView";
 import { HistorialReporteAccionesTable } from "./HistorialReporteAccionesTable";
 import { ReporteAccionesForm } from "./ReporteAccionesForm";
 import { ReporteAccionesTabs, type ReporteAccionesTab } from "./ReporteAccionesTabs";
@@ -16,7 +17,18 @@ const formatosPorEmpresa: Record<EmpresaRocaKey, { codigo: string; version: stri
   DROMOS: { codigo: "SIG-F005", version: "04", consecutivoPrefix: "ACOM" },
 };
 const registrosIniciales: ReporteAccionesRegistro[] = [];
-const usuariosIniciales: UsuarioReporteAcciones[] = [];
+const usuariosIniciales: UsuarioReporteAcciones[] = [
+  {
+    id: "usuario-lider-demo",
+    nombre: "Líder de proceso",
+    correo: "lider.proceso@roca.local",
+    empresa: "INCO",
+    rol: "Líder de proceso",
+    proceso: "Gestión de Calidad",
+    activo: true,
+  },
+];
+const STORAGE_KEY = "roca-reporte-acciones-sig-f005";
 
 function getConsecutivoNumber(consecutivo: string, prefix: string) {
   const match = consecutivo.match(new RegExp(`^${prefix}-\\d{4}-(\\d+)$`));
@@ -45,7 +57,105 @@ function sortRegistrosByRecent(registros: ReporteAccionesRegistro[], prefix: str
   });
 }
 
-function DetalleReporteModal({ registro, onClose }: { registro: ReporteAccionesRegistro; onClose: () => void }) {
+function DetalleReporteModal({
+  registro,
+  onClose,
+  onUpdate,
+}: {
+  registro: ReporteAccionesRegistro;
+  onClose: () => void;
+  onUpdate: (registro: ReporteAccionesRegistro) => void;
+}) {
+  const canImplement =
+    registro.estado === "En implementación" ||
+    registro.estado === "Pendiente de cierre por líder" ||
+    registro.estado === "No eficaz / Requiere nueva acción";
+  const canCorrect = registro.estado === "Devuelto para corrección";
+
+  const updateDetail = (fields: Partial<ReporteAccionesRegistro["detalle"]>) => {
+    onUpdate({ ...registro, detalle: { ...registro.detalle, ...fields } });
+  };
+
+  const updateAction = (actionId: string, fields: Partial<ReporteAccionesRegistro["detalle"]["acciones"][number]>) => {
+    onUpdate({
+      ...registro,
+      detalle: {
+        ...registro.detalle,
+        acciones: registro.detalle.acciones.map((action) => (action.id === actionId ? { ...action, ...fields } : action)),
+      },
+    });
+  };
+
+  const readEvidence = (actionId: string, file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => updateAction(actionId, { evidencia: String(reader.result), evidenciaNombre: file.name });
+    reader.readAsDataURL(file);
+  };
+
+  const requestEffectivenessReview = () => {
+    const incomplete = registro.detalle.acciones.some(
+      (action) => action.cierre !== "Cerrado" || !action.fechaCierre || (!action.evidencia && !action.justificacionSinEvidencia?.trim()),
+    );
+    if (incomplete) {
+      window.alert("Todas las acciones deben estar cerradas, tener fecha y contar con evidencia o justificación.");
+      return;
+    }
+    const state = "En validación de eficacia" as const;
+    onUpdate({
+      ...registro,
+      estado: state,
+      responsableActual: "Gestión de Calidad",
+      detalle: {
+        ...registro.detalle,
+        estado: state,
+        aprobadorActual: "Gestión de Calidad",
+        historial: [
+          ...(registro.detalle.historial ?? []),
+          {
+            id: crypto.randomUUID(),
+            fecha: new Date().toISOString(),
+            usuario: registro.liderProceso,
+            rol: "Líder de proceso",
+            accion: "Solicitó validación de eficacia",
+            estadoAnterior: registro.estado,
+            estadoNuevo: state,
+            observacion: "Acciones cerradas y evidencias remitidas a Calidad.",
+          },
+        ],
+      },
+    });
+    onClose();
+  };
+
+  const resendToQuality = () => {
+    const state = "En revisión de Calidad" as const;
+    onUpdate({
+      ...registro,
+      estado: state,
+      responsableActual: "Gestión de Calidad",
+      detalle: {
+        ...registro.detalle,
+        estado: state,
+        aprobadorActual: "Gestión de Calidad",
+        historial: [
+          ...(registro.detalle.historial ?? []),
+          {
+            id: crypto.randomUUID(),
+            fecha: new Date().toISOString(),
+            usuario: registro.liderProceso,
+            rol: "Líder de proceso",
+            accion: "Corrigió y reenvió el reporte",
+            estadoAnterior: registro.estado,
+            estadoNuevo: state,
+            observacion: "Se atendieron las observaciones de Gestión de Calidad.",
+          },
+        ],
+      },
+    });
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <section className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-2xl">
@@ -56,15 +166,14 @@ function DetalleReporteModal({ registro, onClose }: { registro: ReporteAccionesR
               <h2 className="mt-1 text-xl font-black text-slate-950">Detalle del Reporte de Acciones</h2>
               <p className="mt-1 text-sm text-slate-600">Responsable actual: {registro.responsableActual}</p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-              aria-label="Cerrar detalle"
-              title="Cerrar"
-            >
-              <X className="size-4" />
-            </button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => window.print()} className="inline-grid size-9 place-items-center rounded-md border border-slate-200 text-slate-600" title="Imprimir o guardar PDF">
+                <FileDown className="size-4" />
+              </button>
+              <button type="button" onClick={onClose} className="inline-grid size-9 place-items-center rounded-md border border-slate-200 text-slate-600" aria-label="Cerrar detalle" title="Cerrar">
+                <X className="size-4" />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -98,11 +207,13 @@ function DetalleReporteModal({ registro, onClose }: { registro: ReporteAccionesR
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="rounded-md border border-slate-100 bg-slate-50 p-4 lg:col-span-3">
               <p className="text-xs font-black uppercase text-slate-500">Descripción del hallazgo</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.descripcionHallazgo}</p>
+              {canCorrect ? (
+                <textarea value={registro.detalle.descripcionHallazgo} onChange={(event) => updateDetail({ descripcionHallazgo: event.target.value })} className="mt-2 min-h-24 w-full rounded-md border border-slate-300 p-3 text-sm" />
+              ) : <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.descripcionHallazgo}</p>}
             </div>
             <div className="rounded-md border border-slate-100 bg-white p-4">
               <p className="text-xs font-black uppercase text-slate-500">Causas</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.causas}</p>
+              {canCorrect ? <textarea value={registro.detalle.causas} onChange={(event) => updateDetail({ causas: event.target.value })} className="mt-2 min-h-24 w-full rounded-md border border-slate-300 p-3 text-sm" /> : <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.causas}</p>}
             </div>
             <div className="rounded-md border border-slate-100 bg-white p-4">
               <p className="text-xs font-black uppercase text-slate-500">Consecuencias</p>
@@ -125,7 +236,7 @@ function DetalleReporteModal({ registro, onClose }: { registro: ReporteAccionesR
                     <th className="px-4 py-3">Descripción</th>
                     <th className="px-4 py-3">Fecha implementación</th>
                     <th className="px-4 py-3">Responsable</th>
-                    <th className="px-4 py-3">Cierre</th>
+                    <th className="px-4 py-3">Cierre y evidencia</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -136,13 +247,72 @@ function DetalleReporteModal({ registro, onClose }: { registro: ReporteAccionesR
                       <td className="px-4 py-3">{accion.descripcionAccion}</td>
                       <td className="px-4 py-3">{accion.fechaImplementacion}</td>
                       <td className="px-4 py-3 font-semibold">{accion.responsableImplementacion}</td>
-                      <td className="px-4 py-3">{accion.cierre}</td>
+                      <td className="min-w-72 px-4 py-3">
+                        {canImplement ? (
+                          <div className="space-y-2">
+                            <select value={accion.cierre} onChange={(event) => updateAction(accion.id, { cierre: event.target.value as "Pendiente" | "Cerrado" })} className="h-10 w-full rounded-md border border-slate-300 px-2">
+                              <option>Pendiente</option><option>Cerrado</option>
+                            </select>
+                            <input type="date" value={accion.fechaCierre} onChange={(event) => updateAction(accion.id, { fechaCierre: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 px-2" />
+                            <textarea value={accion.observacion} onChange={(event) => updateAction(accion.id, { observacion: event.target.value })} placeholder="Observación de cierre" className="min-h-16 w-full rounded-md border border-slate-300 p-2" />
+                            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" onChange={(event) => readEvidence(accion.id, event.target.files?.[0])} className="block w-full text-xs" />
+                            {accion.evidenciaNombre ? <p className="text-xs font-bold text-emerald-700">{accion.evidenciaNombre}</p> : null}
+                            <input value={accion.justificacionSinEvidencia ?? ""} onChange={(event) => updateAction(accion.id, { justificacionSinEvidencia: event.target.value })} placeholder="Justificación si no hay evidencia" className="h-10 w-full rounded-md border border-slate-300 px-2 text-xs" />
+                          </div>
+                        ) : (
+                          <div><p className="font-semibold">{accion.cierre}</p>{accion.evidenciaNombre ? <p className="text-xs text-emerald-700">{accion.evidenciaNombre}</p> : null}</div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {canImplement ? (
+            <div className="flex justify-end">
+              <button type="button" onClick={requestEffectivenessReview} className="inline-flex h-11 items-center gap-2 rounded-md bg-emerald-800 px-5 font-bold text-white">
+                <Send className="size-4" /> Solicitar validación de eficacia
+              </button>
+            </div>
+          ) : null}
+
+          {canCorrect ? (
+            <div className="flex justify-end">
+              <button type="button" onClick={resendToQuality} className="inline-flex h-11 items-center gap-2 rounded-md bg-emerald-800 px-5 font-bold text-white">
+                <Send className="size-4" /> Reenviar corrección a Calidad
+              </button>
+            </div>
+          ) : null}
+
+          <section>
+            <h3 className="text-sm font-black uppercase text-slate-800">Trazabilidad</h3>
+            <div className="mt-3 divide-y divide-slate-100 rounded-md border border-slate-200">
+              {(registro.detalle.historial ?? []).map((item) => (
+                <div key={item.id} className="grid gap-1 p-3 text-sm md:grid-cols-[180px_1fr_1fr]">
+                  <span className="text-xs text-slate-500">{new Date(item.fecha).toLocaleString("es-CO")}</span>
+                  <span className="font-bold">{item.accion}</span>
+                  <span className="text-slate-600">{item.observacion || `${item.estadoAnterior ?? "Inicio"} → ${item.estadoNuevo}`}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {registro.detalle.revisiones?.length ? (
+            <section>
+              <h3 className="text-sm font-black uppercase text-slate-800">Aprobaciones y firmas</h3>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {registro.detalle.revisiones.map((review) => (
+                  <article key={review.id} className="rounded-md border border-slate-200 p-4">
+                    <p className="font-black">{review.decision}</p>
+                    <p className="text-sm text-slate-600">{review.usuario} · {new Date(review.fecha).toLocaleString("es-CO")}</p>
+                    <div className="relative mt-3 h-20"><Image src={review.firma} alt={`Firma de ${review.usuario}`} fill unoptimized className="object-contain" /></div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </section>
     </div>
@@ -195,14 +365,28 @@ function CrearReporteModal({
 export function ReporteAccionesPage() {
   const [activeTab, setActiveTab] = useState<ReporteAccionesTab>("historial");
   const [registros, setRegistros] = useState<ReporteAccionesRegistro[]>(registrosIniciales);
-  const [usuarios, setUsuarios] = useState<UsuarioReporteAcciones[]>(usuariosIniciales);
-  const [usuarioActualId, setUsuarioActualId] = useState("");
+  const [usuarios] = useState<UsuarioReporteAcciones[]>(usuariosIniciales);
+  const [usuarioActualId] = useState("usuario-lider-demo");
   const [selectedRegistro, setSelectedRegistro] = useState<ReporteAccionesRegistro | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   const formatoActivo = formatosPorEmpresa[empresaActiva];
   const usuarioActual = useMemo(() => usuarios.find((usuario) => usuario.id === usuarioActualId && usuario.activo), [usuarioActualId, usuarios]);
   const registrosOrdenados = useMemo(() => sortRegistrosByRecent(registros, formatoActivo.consecutivoPrefix), [formatoActivo.consecutivoPrefix, registros]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      if (stored) setRegistros(JSON.parse(stored) as ReporteAccionesRegistro[]);
+    } finally {
+      setHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+  }, [hydrated, registros]);
 
   const createRegistro = (data: ReporteAccionesData) => {
     const detalle = { ...cloneReporteData(data), codigo: formatoActivo.codigo, version: formatoActivo.version };
@@ -211,13 +395,37 @@ export function ReporteAccionesPage() {
       const registro: ReporteAccionesRegistro = {
         id: crypto.randomUUID(),
         consecutivo: getNextConsecutivo(items, formatoActivo.consecutivoPrefix),
-        fechaCreacion: new Date().toISOString().slice(0, 10),
+        fechaCreacion: new Date().toISOString(),
         liderProceso: usuarioActual?.nombre || "Líder de proceso",
         proceso: detalle.proceso || "Sin diligenciar",
         tipoHallazgo: detalle.tipoHallazgo || "Sin diligenciar",
         estado: detalle.estado,
         responsableActual: detalle.aprobadorActual,
-        detalle,
+        detalle: {
+          ...detalle,
+          historial: [
+            {
+              id: crypto.randomUUID(),
+              fecha: new Date().toISOString(),
+              usuario: usuarioActual?.nombre || "Líder de proceso",
+              rol: usuarioActual?.rol || "Líder de proceso",
+              accion: "Creó y envió el reporte a Calidad",
+              estadoAnterior: "Borrador",
+              estadoNuevo: "En revisión de Calidad",
+              observacion: "Reporte enviado para revisión inicial.",
+            },
+          ],
+          revisiones: [],
+          validacionEficacia: {
+            eficaz: null,
+            fecha: "",
+            observacion: "",
+            evidencia: null,
+            evidenciaNombre: "",
+            decision: "",
+            usuario: "",
+          },
+        },
       };
 
       // Log detallado de cada campo del registro
@@ -251,7 +459,7 @@ export function ReporteAccionesPage() {
           "Fecha Seguimiento Eficacia": detalle.fechaSeguimientoEficacia,
           "Observaciones Calidad": detalle.observacionesCalidad,
         },
-        "Acciones Registradas": detalle.acciones.map((accion, index) => ({
+        "Acciones Registradas": detalle.acciones.map((accion) => ({
           "N°": accion.numero,
           "Tipo": accion.tipoAccion,
           "Descripción": accion.descripcionAccion,
@@ -275,21 +483,9 @@ export function ReporteAccionesPage() {
     setIsCreateModalOpen(false);
   };
 
-  const addUsuario = (usuario: UsuarioReporteAcciones) => {
-    setUsuarios((items) => [...items, usuario]);
-    setUsuarioActualId((current) => current || usuario.id);
-  };
-
-  const deleteUsuario = (usuarioId: string) => {
-    if (usuarioActualId === usuarioId) {
-      setUsuarioActualId("");
-    }
-    setUsuarios((items) => items.filter((item) => item.id !== usuarioId));
-  };
-
-  const deleteRegistro = (registroId: string) => {
-    setRegistros((items) => items.filter((item) => item.id !== registroId));
-    setSelectedRegistro((current) => (current?.id === registroId ? null : current));
+  const updateRegistro = (registro: ReporteAccionesRegistro) => {
+    setRegistros((items) => items.map((item) => (item.id === registro.id ? registro : item)));
+    setSelectedRegistro((current) => (current?.id === registro.id ? registro : current));
   };
 
   return (
@@ -324,19 +520,13 @@ export function ReporteAccionesPage() {
               </div>
             </header>
 
-            <HistorialReporteAccionesTable registros={registrosOrdenados} onView={setSelectedRegistro} onDelete={deleteRegistro} />
-            {selectedRegistro ? <DetalleReporteModal registro={selectedRegistro} onClose={() => setSelectedRegistro(null)} /> : null}
+            <HistorialReporteAccionesTable registros={registrosOrdenados} onView={setSelectedRegistro} />
+            {selectedRegistro ? <DetalleReporteModal registro={selectedRegistro} onClose={() => setSelectedRegistro(null)} onUpdate={updateRegistro} /> : null}
           </>
+        ) : activeTab === "aprobacion" ? (
+          <CalidadReporteAccionesView mode="aprobacion" registros={registrosOrdenados} onUpdate={updateRegistro} />
         ) : (
-          <ConfiguracionReporteAccionesView
-            usuarios={usuarios}
-            empresaActiva={empresaActiva}
-            codigoFormato={formatoActivo.codigo}
-            usuarioActualId={usuarioActualId}
-            onUsuarioActualChange={setUsuarioActualId}
-            onAddUsuario={addUsuario}
-            onDeleteUsuario={deleteUsuario}
-          />
+          <CalidadReporteAccionesView mode="eficacia" registros={registrosOrdenados} onUpdate={updateRegistro} />
         )}
       </div>
       {isCreateModalOpen ? (

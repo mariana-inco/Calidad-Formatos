@@ -1,8 +1,8 @@
 "use client";
 
-import { ClipboardList, Settings } from "lucide-react";
+import { ClipboardCheck, ClipboardList, ShieldCheck } from "lucide-react";
 
-export type ReporteAccionesTab = "historial" | "configuracion";
+export type ReporteAccionesTab = "historial" | "aprobacion" | "eficacia";
 
 type ReporteAccionesTabsProps = {
   activeTab: ReporteAccionesTab;
@@ -11,13 +11,14 @@ type ReporteAccionesTabsProps = {
 
 const tabs = [
   { id: "historial" as const, label: "Historial", icon: ClipboardList },
-  { id: "configuracion" as const, label: "Configuración", icon: Settings },
+  { id: "aprobacion" as const, label: "Aprobación", icon: ClipboardCheck },
+  { id: "eficacia" as const, label: "Validación de eficacia", icon: ShieldCheck },
 ];
 
 export function ReporteAccionesTabs({ activeTab, onChange }: ReporteAccionesTabsProps) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-100 p-1 shadow-sm">
-      <div className="grid gap-1 sm:grid-cols-2">
+      <div className="grid gap-1 sm:grid-cols-3">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

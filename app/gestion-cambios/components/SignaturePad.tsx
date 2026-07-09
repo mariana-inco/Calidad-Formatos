@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Signature, { type SignatureCanvasRef } from "@uiw/react-signature/canvas";
 import { Eraser, PenLine, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -11,10 +12,9 @@ type SignaturePadProps = {
 };
 
 export function SignaturePad({ value, label = "Firma del aprobador", onChange }: SignaturePadProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawingRef = useRef(false);
+  const signatureRef = useRef<SignatureCanvasRef>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [draftSignature, setDraftSignature] = useState(value ?? "");
+  const [hasSignature, setHasSignature] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -33,78 +33,20 @@ export function SignaturePad({ value, label = "Firma del aprobador", onChange }:
     };
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const context = canvas.getContext("2d");
-    context?.clearRect(0, 0, canvas.width, canvas.height);
-    if (!draftSignature) return;
-
-    const image = new window.Image();
-    image.onload = () => context?.drawImage(image, 0, 0, canvas.width, canvas.height);
-    image.src = draftSignature;
-  }, [draftSignature, isOpen]);
-
   const openModal = () => {
-    setDraftSignature(value ?? "");
+    setHasSignature(false);
     setIsOpen(true);
   };
 
-  const getPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = event.currentTarget;
-    const bounds = canvas.getBoundingClientRect();
-    return {
-      x: ((event.clientX - bounds.left) / bounds.width) * canvas.width,
-      y: ((event.clientY - bounds.top) / bounds.height) * canvas.height,
-    };
-  };
-
-  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = event.currentTarget;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    const point = getPoint(event);
-    canvas.setPointerCapture(event.pointerId);
-    context.beginPath();
-    context.moveTo(point.x, point.y);
-    context.lineWidth = 3;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.strokeStyle = "#0f172a";
-    drawingRef.current = true;
-  };
-
-  const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingRef.current) return;
-    const context = event.currentTarget.getContext("2d");
-    if (!context) return;
-
-    const point = getPoint(event);
-    context.lineTo(point.x, point.y);
-    context.stroke();
-  };
-
-  const finishDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingRef.current) return;
-    drawingRef.current = false;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    setDraftSignature(event.currentTarget.toDataURL("image/png"));
-  };
-
   const clearDraft = () => {
-    const canvas = canvasRef.current;
-    canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-    setDraftSignature("");
+    signatureRef.current?.clear();
+    setHasSignature(false);
   };
 
   const confirmSignature = () => {
-    if (!draftSignature) return;
-    onChange(draftSignature);
+    const canvas = signatureRef.current?.canvas;
+    if (!canvas || !hasSignature) return;
+    onChange(canvas.toDataURL("image/png"));
     setIsOpen(false);
   };
 
@@ -150,14 +92,14 @@ export function SignaturePad({ value, label = "Firma del aprobador", onChange }:
               </button>
             </div>
 
-            <canvas
-              ref={canvasRef}
+            <Signature
+              ref={signatureRef}
               width={900}
               height={300}
-              onPointerDown={startDrawing}
-              onPointerMove={draw}
-              onPointerUp={finishDrawing}
-              onPointerCancel={finishDrawing}
+              options={{ size: 4, thinning: 0.45, smoothing: 0.65, streamline: 0.55 }}
+              onPointer={(points) => {
+                if (points.length > 0) setHasSignature(true);
+              }}
               className="mt-4 h-48 w-full touch-none rounded-md border border-slate-300 bg-white sm:h-52"
             />
 
@@ -173,7 +115,7 @@ export function SignaturePad({ value, label = "Firma del aprobador", onChange }:
               <button
                 type="button"
                 onClick={confirmSignature}
-                disabled={!draftSignature}
+                disabled={!hasSignature}
                 className="inline-flex h-11 items-center justify-center rounded-md bg-blue-700 px-6 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 Continuar

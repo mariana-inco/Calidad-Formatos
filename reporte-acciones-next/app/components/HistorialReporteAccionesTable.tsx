@@ -1,22 +1,24 @@
 "use client";
 
-import { CalendarDays, CircleDot, Eye, Hash, Trash2, UserRound, Workflow } from "lucide-react";
+import { CalendarDays, CircleDot, Eye, Hash, Search, UserRound, Workflow } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { ReporteAccionesRegistro, ReporteEstado } from "./types";
 
 type HistorialReporteAccionesTableProps = {
   registros: ReporteAccionesRegistro[];
   onView: (registro: ReporteAccionesRegistro) => void;
-  onDelete: (registroId: string) => void;
 };
 
 const estadoClassName: Record<ReporteEstado, string> = {
   Borrador: "border-slate-200 bg-slate-100 text-slate-700",
   "En revisión de Calidad": "border-amber-200 bg-amber-50 text-amber-800",
-  "Requiere corrección": "border-red-200 bg-red-50 text-red-700",
-  "Aprobada por Calidad": "border-blue-200 bg-blue-50 text-blue-800",
-  "En cierre por líder": "border-indigo-200 bg-indigo-50 text-indigo-800",
-  "Cierre enviado a Calidad": "border-purple-200 bg-purple-50 text-purple-800",
+  "Devuelto para corrección": "border-red-200 bg-red-50 text-red-700",
+  "Aprobado por Calidad": "border-blue-200 bg-blue-50 text-blue-800",
+  "En implementación": "border-indigo-200 bg-indigo-50 text-indigo-800",
+  "Pendiente de cierre por líder": "border-cyan-200 bg-cyan-50 text-cyan-800",
+  "En validación de eficacia": "border-purple-200 bg-purple-50 text-purple-800",
   Cerrado: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  "No eficaz / Requiere nueva acción": "border-orange-200 bg-orange-50 text-orange-800",
 };
 
 function EstadoBadge({ estado }: { estado: ReporteEstado }) {
@@ -46,7 +48,20 @@ function TableHeadLabel({ icon, children }: { icon: React.ReactNode; children: R
   );
 }
 
-export function HistorialReporteAccionesTable({ registros, onView, onDelete }: HistorialReporteAccionesTableProps) {
+export function HistorialReporteAccionesTable({ registros, onView }: HistorialReporteAccionesTableProps) {
+  const [search, setSearch] = useState("");
+  const [state, setState] = useState("");
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return registros.filter(
+      (item) =>
+        (!state || item.estado === state) &&
+        (!term ||
+          [item.consecutivo, item.liderProceso, item.proceso, item.tipoHallazgo, item.responsableActual]
+            .some((value) => value.toLowerCase().includes(term))),
+    );
+  }, [registros, search, state]);
+
   if (registros.length === 0) {
     return (
       <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
@@ -59,7 +74,18 @@ export function HistorialReporteAccionesTable({ registros, onView, onDelete }: H
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-[1fr_300px]">
+        <label className="relative block">
+          <Search className="absolute left-4 top-3.5 size-5 text-slate-400" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por código, líder, proceso, hallazgo o responsable" className="h-12 w-full rounded-md border border-slate-300 bg-white pl-12 pr-4 text-sm font-semibold outline-none focus:border-emerald-700" />
+        </label>
+        <select value={state} onChange={(event) => setState(event.target.value)} className="h-12 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold outline-none focus:border-emerald-700">
+          <option value="">Todos los estados</option>
+          {Object.keys(estadoClassName).map((item) => <option key={item}>{item}</option>)}
+        </select>
+      </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="hidden overflow-x-auto lg:block">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-[#f4f7fb] text-[11px] font-black uppercase tracking-wide text-slate-600">
@@ -85,7 +111,7 @@ export function HistorialReporteAccionesTable({ registros, onView, onDelete }: H
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {registros.map((registro) => (
+            {filtered.map((registro) => (
               <tr key={registro.id} className="text-slate-800 transition hover:bg-blue-50/40">
                 <td className="px-5 py-5 font-black text-emerald-900">{registro.consecutivo}</td>
                 <td className="px-5 py-5">{registro.fechaCreacion}</td>
@@ -101,9 +127,6 @@ export function HistorialReporteAccionesTable({ registros, onView, onDelete }: H
                     <ActionButton label="Ver reporte" onClick={() => onView(registro)}>
                       <Eye className="size-4" />
                     </ActionButton>
-                    <ActionButton label="Eliminar" onClick={() => onDelete(registro.id)}>
-                      <Trash2 className="size-4" />
-                    </ActionButton>
                   </div>
                 </td>
               </tr>
@@ -113,7 +136,7 @@ export function HistorialReporteAccionesTable({ registros, onView, onDelete }: H
       </div>
 
       <div className="grid gap-4 p-4 lg:hidden">
-        {registros.map((registro) => (
+        {filtered.map((registro) => (
           <article key={registro.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -140,12 +163,10 @@ export function HistorialReporteAccionesTable({ registros, onView, onDelete }: H
               <ActionButton label="Ver reporte" onClick={() => onView(registro)}>
                 <Eye className="size-4" />
               </ActionButton>
-              <ActionButton label="Eliminar" onClick={() => onDelete(registro.id)}>
-                <Trash2 className="size-4" />
-              </ActionButton>
             </div>
           </article>
         ))}
+      </div>
       </div>
     </section>
   );

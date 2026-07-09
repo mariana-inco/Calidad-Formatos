@@ -272,7 +272,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
 
       setReporte((current) => ({
         ...current,
-        estado: "Requiere corrección",
+        estado: "Devuelto para corrección",
         aprobadorActual: current.proceso || "Líder de proceso",
       }));
       return;
@@ -300,7 +300,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
 
       setReporte((current) => ({
         ...current,
-        estado: "Aprobada por Calidad",
+        estado: "Aprobado por Calidad",
         aprobadorActual: "Gestión de Calidad",
       }));
       return;
@@ -309,7 +309,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
     if (accion === "remitir-lider") {
       setReporte((current) => ({
         ...current,
-        estado: "En cierre por líder",
+        estado: "En implementación",
         aprobadorActual: current.proceso || "Líder de proceso",
       }));
       return;
@@ -324,7 +324,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
 
       setReporte((current) => ({
         ...current,
-        estado: "Cierre enviado a Calidad",
+        estado: "En validación de eficacia",
         aprobadorActual: "Gestión de Calidad",
       }));
       return;
@@ -366,7 +366,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       );
     }
 
-    if (reporte.estado === "Requiere corrección") {
+    if (reporte.estado === "Devuelto para corrección") {
       return (
         <button
           type="button"
@@ -378,7 +378,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       );
     }
 
-    if (reporte.estado === "Aprobada por Calidad") {
+    if (reporte.estado === "Aprobado por Calidad") {
       return (
         <button
           type="button"
@@ -390,7 +390,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       );
     }
 
-    if (reporte.estado === "En cierre por líder") {
+    if (reporte.estado === "En implementación" || reporte.estado === "Pendiente de cierre por líder") {
       return (
         <button
           type="button"
@@ -402,7 +402,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       );
     }
 
-    if (reporte.estado === "Cierre enviado a Calidad") {
+    if (reporte.estado === "En validación de eficacia") {
       return (
         <button
           type="button"
@@ -498,7 +498,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
               <AccionForm value={accionForm} isEditing={editingId !== null} error={accionError} onChange={setAccionForm} onSubmit={saveAccion} />
               <AccionesTable
                 acciones={reporte.acciones}
-                canCloseActions={reporte.estado === "En cierre por líder"}
+                canCloseActions={reporte.estado === "En implementación" || reporte.estado === "Pendiente de cierre por líder"}
                 onEdit={editAccion}
                 onDelete={deleteAccion}
                 onUpdateCierre={updateCierreAccion}

@@ -153,7 +153,6 @@ function toChange(row: NonNullable<ChangeRow>): GestionCambio {
     cargo: approval.position ?? "",
     fecha: dateOnly(approval.createdAt) ?? "",
     observaciones: approval.observation ?? "",
-    firma: approval.signature ?? undefined,
     rolAprobador: approval.role as GestionCambioRol,
   }));
   const approval = approvals.at(-1);

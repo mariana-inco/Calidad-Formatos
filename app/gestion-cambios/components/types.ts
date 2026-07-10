@@ -95,7 +95,6 @@ export type AprobacionCambioData = {
   cargo: string;
   fecha: string;
   observaciones: string;
-  firma?: string;
   rolAprobador: GestionCambioRol;
 };
 

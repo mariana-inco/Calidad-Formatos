@@ -108,12 +108,6 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     textTransform: "uppercase",
   },
-  subtitle: {
-    marginTop: 4,
-    color: "#475569",
-    fontSize: 8,
-    textTransform: "uppercase",
-  },
   metaBox: {
     width: "18%",
     justifyContent: "center",
@@ -124,11 +118,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 6,
-  },
-  metaLabel: {
-    width: 52,
-    fontFamily: "Helvetica-Bold",
-    fontSize: 8,
   },
   metaValue: {
     fontFamily: "Helvetica-Bold",

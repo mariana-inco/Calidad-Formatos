@@ -5,7 +5,7 @@ import {
   deactivateUser,
   getGestionCambiosData,
   updateChange,
-} from "@/lib/gestion-cambios-db";
+} from "@/backend/gestion-cambios-db";
 
 export const dynamic = "force-dynamic";
 

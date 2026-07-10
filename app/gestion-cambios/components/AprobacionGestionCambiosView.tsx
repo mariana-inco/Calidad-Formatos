@@ -1,11 +1,10 @@
 "use client";
 
-import { CheckCircle2, ClipboardCheck, Clock3, RotateCw, Search, ShieldAlert, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Clock3, RotateCw, Search, XCircle } from "lucide-react";
 import { useState } from "react";
 import type { GestionCambio, UsuarioGestionCambio } from "./types";
 import { HistorialGestionCambiosTable } from "./HistorialGestionCambiosTable";
 import {
-  canAccessApproval,
   canEditCorrection,
   filterRegistrosForApproval,
   filterRegistrosForApprovalHistory,
@@ -56,22 +55,6 @@ function ApprovalSection({
 export function AprobacionGestionCambiosView({ registros, usuarioActual, onView, onEdit }: AprobacionGestionCambiosViewProps) {
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyState, setHistoryState] = useState("");
-
-  if (!canAccessApproval(usuarioActual)) {
-    return (
-      <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-950 shadow-sm">
-        <div className="flex items-start gap-3">
-          <ShieldAlert className="mt-1 size-5 shrink-0" />
-          <div>
-            <h1 className="text-lg font-black">Aprobación no disponible para este usuario</h1>
-            <p className="mt-1 text-sm leading-6">
-              Esta pestaña solo está visible para usuarios activos configurados como Calidad, líderes o aprobadores.
-            </p>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   const registrosAsignados = filterRegistrosForApproval(registros, usuarioActual);
   const registrosHistorial = filterRegistrosForApprovalHistory(registros, usuarioActual);

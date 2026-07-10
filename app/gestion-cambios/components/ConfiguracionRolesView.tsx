@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock3, Eye, Plus, RotateCw, Settings, Trash2, UserRound, XCircle } from "lucide-react";
+import { Eye, Plus, Settings, Trash2, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { GestionCambioEmpresa, GestionCambioRol, UsuarioGestionCambio } from "./types";
 import { roleLabels } from "./workflow";
@@ -37,7 +37,7 @@ const roleConfigs: RoleConfig[] = [
   {
     rol: "GERENCIA_ADMINISTRATIVA",
     title: "Gerencia Administrativa",
-    description: "Recibe las gestiones validadas por Calidad y registra la firma correspondiente.",
+    description: "Recibe las gestiones validadas por Calidad y registra la decisión correspondiente.",
     badgeClassName: "border-blue-200 bg-blue-50 text-blue-800",
   },
   {
@@ -64,32 +64,25 @@ function UserLine({ usuario, onDelete }: { usuario: UsuarioGestionCambio; onDele
     .toUpperCase();
 
   return (
-    <div className="relative rounded-lg border border-slate-200 bg-white p-4 shadow-sm before:absolute before:left-0 before:top-0 before:h-1 before:w-full before:rounded-t-lg before:bg-gradient-to-r before:from-blue-600 before:to-emerald-400">
+    <div className="relative rounded-lg border border-slate-200 bg-white p-3 shadow-sm before:absolute before:left-0 before:top-0 before:h-1 before:w-full before:rounded-t-lg before:bg-gradient-to-r before:from-blue-600 before:to-emerald-400">
       <button
         type="button"
         onClick={() => onDelete(usuario.id)}
-        className="absolute right-3 top-3 inline-grid size-7 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-700"
+        className="absolute right-2 top-2 inline-grid size-7 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-700"
         aria-label="Quitar usuario"
         title="Quitar usuario"
       >
         <Trash2 className="size-3.5" />
       </button>
-      <div className="flex gap-4 pt-3">
-        <div className="grid size-12 shrink-0 place-items-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-black text-blue-700">
+      <div className="flex items-center gap-3 pt-3">
+        <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-black text-blue-700">
           {initials || <UserRound className="size-4" />}
         </div>
-        <div className="min-w-0 flex-1 text-center">
+        <div className="min-w-0 flex-1 pr-7">
           <p className="truncate text-xs font-black uppercase text-[#08142f]">{usuario.nombre}</p>
-          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{roleLabels[usuario.rol]}</p>
-          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">{usuario.empresa}</p>
+          <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{roleLabels[usuario.rol]}</p>
+          <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.14em] text-blue-600">{usuario.empresa}</p>
         </div>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-black">
-        <span className="inline-flex items-center justify-between rounded-full bg-blue-50 px-2 py-1 text-blue-700"><span className="inline-flex items-center gap-1"><UserRound className="size-3" />Total</span>0</span>
-        <span className="inline-flex items-center justify-between rounded-full bg-amber-50 px-2 py-1 text-amber-700"><span className="inline-flex items-center gap-1"><Clock3 className="size-3" />Pendientes</span>0</span>
-        <span className="inline-flex items-center justify-between rounded-full bg-emerald-50 px-2 py-1 text-emerald-700"><span className="inline-flex items-center gap-1"><CheckCircle2 className="size-3" />Aprobadas</span>0</span>
-        <span className="inline-flex items-center justify-between rounded-full bg-violet-50 px-2 py-1 text-violet-700"><span className="inline-flex items-center gap-1"><RotateCw className="size-3" />En progreso</span>0</span>
-        <span className="col-span-2 inline-flex items-center justify-between rounded-full bg-red-50 px-2 py-1 text-red-700"><span className="inline-flex items-center gap-1"><XCircle className="size-3" />Rechazadas</span>0</span>
       </div>
     </div>
   );
@@ -162,7 +155,7 @@ export function ConfiguracionRolesView({
           </div>
           <span className="inline-flex w-fit rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black uppercase text-blue-700">Empresa activa: {empresaActiva}</span>
         </div>
-        <div className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-3">
         {roleConfigs.map((config) => {
           const usuariosRol = usuarios.filter((usuario) => usuario.empresa === empresaActiva && usuario.rol === config.rol && usuario.activo);
           const isEditing = editingRole === config.rol;
@@ -170,37 +163,40 @@ export function ConfiguracionRolesView({
           return (
             <article
               key={config.rol}
-              className={`rounded-lg border bg-white p-4 transition ${isEditing ? "border-blue-300 border-dashed" : "border-slate-200"}`}
+              className={`flex flex-col rounded-lg border bg-white p-4 transition ${isEditing ? "border-blue-300 border-dashed shadow-sm shadow-blue-100" : "border-slate-200"}`}
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${config.badgeClassName}`}>{config.title}</span>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">{config.description}</p>
-
-                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                    {usuariosRol.length > 0 ? (
-                      usuariosRol.map((usuario) => <UserLine key={usuario.id} usuario={usuario} onDelete={onDeleteUsuario} />)
-                    ) : (
-                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 lg:col-span-3">
-                        <UserRound className="size-3.5" />
-                        Sin usuarios asignados
-                      </p>
-                    )}
+              <div className="flex flex-1 flex-col gap-4">
+                <div className="space-y-3">
+                  <div className="flex min-h-9 items-start justify-between gap-3">
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${config.badgeClassName}`}>{config.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => openRoleEditor(config.rol)}
+                      className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-black text-[#08142f] transition hover:border-blue-600 hover:text-blue-700"
+                    >
+                      {isEditing ? "Cancelar" : "Cambiar"}
+                    </button>
                   </div>
+                  <p className="min-h-16 text-xs leading-5 text-slate-500">{config.description}</p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => openRoleEditor(config.rol)}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-black text-[#08142f] transition hover:border-blue-600 hover:text-blue-700"
-                >
-                  {isEditing ? "Cancelar" : "Cambiar"}
-                </button>
+                <div className="grid gap-3">
+                  {usuariosRol.length > 0 ? (
+                    usuariosRol.map((usuario) => <UserLine key={usuario.id} usuario={usuario} onDelete={onDeleteUsuario} />)
+                  ) : (
+                    <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-500">
+                      <span className="inline-flex items-center gap-2">
+                        <UserRound className="size-3.5" />
+                        Sin usuarios asignados
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {isEditing ? (
-                <div className="mt-4 rounded-lg border border-dashed border-blue-200 bg-[#f8fbff] p-4">
-                  <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
+                <div className="mt-4 rounded-lg border border-dashed border-blue-200 bg-[#f8fbff] p-3">
+                  <div className="grid gap-3">
                     <label className="block">
                       <span className="text-xs font-black uppercase tracking-wide text-slate-600">Nombre</span>
                       <input
@@ -234,7 +230,7 @@ export function ConfiguracionRolesView({
                     <button
                       type="button"
                       onClick={() => addUsuarioToRole(config.rol)}
-                      className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-4 text-sm font-bold text-white transition hover:bg-blue-800 lg:mt-auto"
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-4 text-sm font-bold text-white transition hover:bg-blue-800"
                     >
                       <Plus className="size-4" />
                       Añadir a la lista
@@ -246,7 +242,7 @@ export function ConfiguracionRolesView({
           );
         })}
 
-        <article className="rounded-lg border border-dashed border-blue-200 bg-white p-4">
+        <article className="rounded-lg border border-dashed border-blue-200 bg-white p-4 xl:col-span-3">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-700">

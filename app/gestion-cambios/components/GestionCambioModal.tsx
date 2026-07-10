@@ -15,14 +15,14 @@ export function GestionCambioModal({ isOpen, title, onClose, children, formId, s
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-2 sm:p-6">
-      <section className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-md bg-white shadow-2xl">
-        <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-5 sm:px-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-2 sm:p-4">
+      <section className="flex max-h-[90vh] w-full max-w-[1440px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+        <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
           <div className="flex items-start gap-3">
             <ClipboardList className="mt-1 size-5 text-slate-600" />
             <div>
-              <h2 className="text-xl font-black text-slate-700 sm:text-2xl">{title}</h2>
-              <p className="mt-5 text-xs font-medium text-slate-500">Completa la información para registrar la solicitud.</p>
+              <h2 className="text-lg font-black text-slate-700 sm:text-xl">{title}</h2>
+              <p className="mt-1 text-xs font-medium text-slate-500">Completa la información para registrar la solicitud.</p>
             </div>
           </div>
           <button
@@ -35,11 +35,11 @@ export function GestionCambioModal({ isOpen, title, onClose, children, formId, s
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-[#f7fafd] px-4 py-5 sm:px-6">
+        <div className="flex-1 overflow-y-auto bg-[#f7fafd] px-3 py-4 sm:px-6">
           {children}
         </div>
 
-        <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+        <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
           <button
             type="button"
             onClick={onClose}

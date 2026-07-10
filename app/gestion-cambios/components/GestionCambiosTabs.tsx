@@ -7,7 +7,6 @@ export type GestionCambiosTab = "creacion" | "aprobacion" | "configuracion";
 type GestionCambiosTabsProps = {
   activeTab: GestionCambiosTab;
   onChange: (tab: GestionCambiosTab) => void;
-  showApproval?: boolean;
 };
 
 const tabs = [
@@ -16,13 +15,11 @@ const tabs = [
   { id: "configuracion" as const, label: "Configuración", icon: Settings },
 ];
 
-export function GestionCambiosTabs({ activeTab, onChange, showApproval = true }: GestionCambiosTabsProps) {
-  const visibleTabs = tabs.filter((tab) => tab.id !== "aprobacion" || showApproval);
-
+export function GestionCambiosTabs({ activeTab, onChange }: GestionCambiosTabsProps) {
   return (
     <div className="rounded-md border border-slate-200 bg-[#eef3f8] p-1 shadow-sm">
-      <div className={`grid gap-1 ${visibleTabs.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-        {visibleTabs.map((tab) => {
+      <div className="grid gap-1 sm:grid-cols-3">
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 

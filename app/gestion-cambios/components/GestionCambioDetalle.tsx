@@ -1,15 +1,27 @@
 "use client";
 
-import { CalendarDays, Download, FilePenLine, UserCheck, Workflow } from "lucide-react";
-import Image from "next/image";
+import {
+  Building2,
+  CalendarDays,
+  Clock3,
+  Download,
+  FilePenLine,
+  Hash,
+  MessageSquareText,
+  ShieldCheck,
+  Tag,
+  UserCheck,
+  Users,
+  Workflow,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { analisisFields } from "./formData";
-import { SignaturePad } from "./SignaturePad";
+import { canDownloadGestionCambioPdf, downloadGestionCambioPdf } from "./GestionCambioPdf";
 import type { AprobacionCambioData, GestionCambio, GestionCambioWorkflowAction, SeguimientoCambioData, UsuarioGestionCambio } from "./types";
 import {
   estadoBadgeClassName,
   estadoLabels,
-  getDiasRestantes,
   getEffectiveEstado,
   getEstadoCierre,
   hasApproverDecision,
@@ -20,7 +32,6 @@ import {
 export type WorkflowPayload = {
   observacionesCorreccion?: string;
   validacionCalidad?: string;
-  firmaRevisionCalidad?: string;
   aprobadorSeleccionadoId?: string;
   aprobacion?: AprobacionCambioData;
   seguimiento?: SeguimientoCambioData;
@@ -53,13 +64,6 @@ const actionLabels: Record<GestionCambioWorkflowAction, string> = {
   CERRAR_FORMATO: "Calidad cierra el formato",
 };
 
-const companyHeaders: Record<GestionCambio["empresa"], { logo: string; nombre: string; nit: string }> = {
-  Dromos: { logo: "DR", nombre: "Dromos", nit: "Config local ROCA pendiente" },
-  Incominería: { logo: "IN", nombre: "Incominería", nit: "Config local ROCA pendiente" },
-  Ingestrac: { logo: "IG", nombre: "Ingestrac", nit: "Config local ROCA pendiente" },
-  Drominc: { logo: "DM", nombre: "Drominc", nit: "Config local ROCA pendiente" },
-};
-
 function formatTimelineDate(value: string) {
   return new Intl.DateTimeFormat("es-CO", {
     dateStyle: "medium",
@@ -68,13 +72,43 @@ function formatTimelineDate(value: string) {
   }).format(new Date(value));
 }
 
-function DetailItem({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailItem({ label, value, icon }: { label: string; value: React.ReactNode; icon?: React.ReactNode }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4">
-      <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
-      <div className="mt-2 text-sm font-semibold leading-6 text-slate-950">{value || "Sin diligenciar"}</div>
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+      <p className="flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-slate-400 sm:justify-start">
+        {icon ? <span className="text-blue-600">{icon}</span> : null}
+        {label}
+      </p>
+      <div className="mt-1.5 text-center text-sm font-black leading-5 text-[#111a32] sm:text-left">{value || "Sin diligenciar"}</div>
     </div>
   );
+}
+
+function SectionCard({ title, subtitle, icon, children }: { title: string; subtitle?: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <header className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
+        {icon ? <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700">{icon}</span> : null}
+        <div>
+          <h3 className="text-base font-black text-[#111a32]">{title}</h3>
+          {subtitle ? <p className="mt-1 text-sm font-medium leading-5 text-slate-500">{subtitle}</p> : null}
+        </div>
+      </header>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function formatDisplayDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "America/Bogota",
+  }).format(date);
 }
 
 function TableHeadLabel({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
@@ -98,6 +132,23 @@ function PrimaryButton({ children, onClick }: { children: React.ReactNode; onCli
   );
 }
 
+function FirmaPlaceholderButton({ label = "Firmar" }: { label?: string }) {
+  return (
+    <div className="space-y-2">
+      <span className="text-xs font-black uppercase tracking-wide text-slate-600">Firma</span>
+      <button
+        type="button"
+        disabled
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-100 px-4 text-sm font-black text-slate-400"
+        title="La firma será gestionada desde ROCA."
+      >
+        <FilePenLine className="size-4" />
+        {label}
+      </button>
+    </div>
+  );
+}
+
 export function GestionCambioDetalle({
   registro,
   showApprovalActions = false,
@@ -108,9 +159,6 @@ export function GestionCambioDetalle({
 }: GestionCambioDetalleProps) {
   const [calidadAprueba, setCalidadAprueba] = useState<"SI" | "NO">("SI");
   const [observacionesCorreccion, setObservacionesCorreccion] = useState(registro.observacionesCorreccion ?? "");
-  const [firmaRevisionCalidad, setFirmaRevisionCalidad] = useState(
-    registro.aprobaciones?.find((item) => item.rolAprobador === "GESTION_CALIDAD")?.firma ?? "",
-  );
   const [aprobacion, setAprobacion] = useState<AprobacionCambioData>(
     registro.aprobacion ?? {
       aprobado: "SI",
@@ -118,7 +166,6 @@ export function GestionCambioDetalle({
       cargo: usuarioActual?.cargo ?? roleLabels[usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA"],
       fecha: "",
       observaciones: "",
-      firma: "",
       rolAprobador: usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA",
     },
   );
@@ -135,6 +182,7 @@ export function GestionCambioDetalle({
   );
   const [aprobadorSeleccionadoId, setAprobadorSeleccionadoId] = useState(registro.aprobadorSeleccionadoId ?? responsablesAprobacion[0]?.id ?? "");
   const [error, setError] = useState("");
+  const [timelineOpen, setTimelineOpen] = useState(false);
 
   const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD" && !hasQualityInitialReview(registro);
   const isQualityFollowup = registro.estado === "EN_SEGUIMIENTO_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD";
@@ -156,7 +204,7 @@ export function GestionCambioDetalle({
       (registro.creadorId === usuarioActual.id || registro.liderProcesoId === usuarioActual.id),
   );
   const estadoActual = getEffectiveEstado(registro);
-  const diasRestantes = getDiasRestantes(registro.fechaLimiteCierre);
+  const canExportPdf = canDownloadGestionCambioPdf(registro);
 
   const requireText = (value: string, message: string) => {
     if (value.trim()) return true;
@@ -176,14 +224,12 @@ export function GestionCambioDetalle({
       return;
     }
     if (!requireText(aprobadorSeleccionadoId, "Seleccione a quién enviar para aprobación.")) return;
-    if (!requireText(firmaRevisionCalidad, "La firma de la revisión de Calidad es obligatoria.")) return;
 
     const aprobador = responsablesAprobacion.find((responsable) => responsable.id === aprobadorSeleccionadoId);
 
     setError("");
     onWorkflowAction?.("VALIDAR_REMITIR", {
       aprobadorSeleccionadoId,
-      firmaRevisionCalidad,
       validacionCalidad: observacionesCorreccion.trim()
         ? `Calidad aprueba la revisión inicial y remite a ${aprobador?.nombre ?? "el aprobador seleccionado"}. Observaciones: ${observacionesCorreccion.trim()}`
         : `Calidad aprueba la revisión inicial y remite a ${aprobador?.nombre ?? "el aprobador seleccionado"}.`,
@@ -192,7 +238,6 @@ export function GestionCambioDetalle({
 
   const registerApprovalDecision = () => {
     if (!requireText(aprobacion.observaciones, "Las observaciones de aprobación son obligatorias.")) return;
-    if (!requireText(aprobacion.firma ?? "", "La firma del aprobador es obligatoria.")) return;
     setError("");
     const action = isLeaderApprovalTurn
       ? aprobacion.aprobado === "SI"
@@ -225,91 +270,8 @@ export function GestionCambioDetalle({
     onWorkflowAction?.("CERRAR_FORMATO", { seguimiento });
   };
 
-  const exportPdf = () => {
-    const header = companyHeaders[registro.empresa];
-    const rows = registro.historial
-      .map(
-        (evento, index) => `
-          <tr>
-            <td>${index + 1}</td>
-            <td>${actionLabels[evento.accion]}</td>
-            <td>${evento.estadoAnterior ? estadoLabels[evento.estadoAnterior] : ""}</td>
-            <td>${evento.estadoNuevo ? estadoLabels[evento.estadoNuevo] : ""}</td>
-            <td>${evento.usuario}${evento.cargo ? ` - ${evento.cargo}` : ""}</td>
-            <td>${formatTimelineDate(evento.fecha)}</td>
-            <td>${evento.observaciones ?? ""}${evento.aprobadorSeleccionadoNombre ? ` Aprobador: ${evento.aprobadorSeleccionadoNombre}` : ""}</td>
-          </tr>`,
-      )
-      .join("");
-    const printWindow = window.open("", "_blank", "width=1100,height=800");
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <!doctype html>
-      <html lang="es">
-        <head>
-          <meta charset="utf-8" />
-          <title>${registro.codigo} - SIG-F006</title>
-          <style>
-            body { font-family: Arial, sans-serif; color: #0f172a; margin: 28px; }
-            header { display: grid; grid-template-columns: 86px 1fr 180px; gap: 14px; align-items: center; border: 1px solid #94a3b8; padding: 12px; }
-            .logo { display: grid; place-items: center; width: 70px; height: 70px; border-radius: 8px; background: #064e3b; color: white; font-weight: 800; font-size: 24px; }
-            h1 { margin: 0; font-size: 18px; text-align: center; }
-            h2 { margin: 24px 0 8px; font-size: 14px; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
-            .meta { font-size: 12px; line-height: 1.5; }
-            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-            .box { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; min-height: 32px; }
-            .label { display: block; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 4px; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; }
-            th, td { border: 1px solid #cbd5e1; padding: 6px; vertical-align: top; }
-            th { background: #ecfdf5; text-transform: uppercase; font-size: 10px; }
-            @media print { button { display: none; } body { margin: 14mm; } }
-          </style>
-        </head>
-        <body>
-          <button onclick="window.print()">Imprimir / guardar PDF</button>
-          <header>
-            <div class="logo">${header.logo}</div>
-            <div>
-              <h1>GESTIÓN DEL CAMBIO SIG-F006</h1>
-              <p class="meta">${header.nombre} | ${header.nit}</p>
-            </div>
-            <div class="meta"><strong>Código:</strong> ${registro.codigo}<br/><strong>Estado:</strong> ${estadoLabels[getEffectiveEstado(registro)]}</div>
-          </header>
-          <h2>Datos generales</h2>
-          <div class="grid">
-            <div class="box"><span class="label">Empresa</span>${registro.empresa}</div>
-            <div class="box"><span class="label">Proceso</span>${registro.proceso}</div>
-            <div class="box"><span class="label">Creador</span>${registro.creadorNombre ?? registro.creadorId}</div>
-            <div class="box"><span class="label">Líder del proceso</span>${registro.liderProceso}</div>
-            <div class="box"><span class="label">Tipo de cambio</span>${registro.tipoCambio}</div>
-            <div class="box"><span class="label">Responsable actual</span>${registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</div>
-          </div>
-          <h2>Análisis asociado al cambio</h2>
-          <div class="grid">${analisisFields.map((field) => `<div class="box"><span class="label">${field.label}</span>${registro.detalle.analisis[field.id] ?? ""}</div>`).join("")}</div>
-          <h2>Plan de implementación</h2>
-          <table><thead><tr><th>Actividad</th><th>Responsable</th><th>Fecha oficial</th></tr></thead><tbody>${registro.detalle.plan
-            .map((plan) => `<tr><td>${plan.actividades}</td><td>${plan.responsable}</td><td>${plan.fecha}</td></tr>`)
-            .join("")}</tbody></table>
-          <h2>Validación, aprobación y seguimiento</h2>
-          <div class="grid">
-            <div class="box"><span class="label">Validación de Calidad</span>${registro.validacionCalidad ?? ""}</div>
-            ${(registro.aprobaciones ?? [])
-              .map(
-                (item) =>
-                  `<div class="box"><span class="label">${roleLabels[item.rolAprobador]} - ${item.aprobado === "SI" ? "Conforme" : "Rechazado"}</span>${item.nombre} - ${item.cargo}<br/>${item.observaciones}${item.firma ? `<br/><img src="${item.firma}" alt="Firma de ${item.nombre}" style="max-width:220px;max-height:70px;margin-top:8px" />` : ""}</div>`,
-              )
-              .join("")}
-            <div class="box"><span class="label">Seguimiento de eficacia</span>${registro.seguimiento ? `${registro.seguimiento.cambioEficaz} - ${registro.seguimiento.observaciones} ${registro.seguimiento.acciones}` : ""}</div>
-            <div class="box"><span class="label">Estado final / fecha cierre</span>${estadoLabels[getEffectiveEstado(registro)]} ${registro.fechaCierre ?? ""}</div>
-          </div>
-          <h2>Historial de trazabilidad</h2>
-          <table><thead><tr><th>#</th><th>Acción</th><th>De</th><th>A</th><th>Usuario</th><th>Fecha/hora oficial</th><th>Observación</th></tr></thead><tbody>${rows}</tbody></table>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
+  const exportPdf = async () => {
+    await downloadGestionCambioPdf(registro, window.location.origin);
   };
 
   const renderRevisionCalidad = () => (
@@ -375,11 +337,7 @@ export function GestionCambioDetalle({
                 ))}
               </select>
             </label>
-            <SignaturePad
-              value={firmaRevisionCalidad}
-              label="Firma de revisión de Calidad"
-              onChange={setFirmaRevisionCalidad}
-            />
+            <FirmaPlaceholderButton />
           </div>
         ) : null}
       </div>
@@ -430,11 +388,7 @@ export function GestionCambioDetalle({
         <textarea value={aprobacion.observaciones} onChange={(event) => setAprobacion((current) => ({ ...current, observaciones: event.target.value }))} className={`${inputClassName} min-h-20`} placeholder="Registra las observaciones de la aprobación o rechazo." />
       </label>
 
-      <SignaturePad
-        value={aprobacion.firma}
-        label={isLeaderApprovalTurn ? "Firma del líder del proceso" : "Firma del aprobador"}
-        onChange={(firma) => setAprobacion((current) => ({ ...current, firma }))}
-      />
+      <FirmaPlaceholderButton />
 
       <div className="flex justify-end">
         <PrimaryButton onClick={registerApprovalDecision}>{aprobacion.aprobado === "SI" ? "Aprobar cambio" : "Rechazar cambio"}</PrimaryButton>
@@ -485,76 +439,116 @@ export function GestionCambioDetalle({
   );
 
   return (
-    <div className="space-y-6 text-slate-950">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={exportPdf}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800"
-        >
-          <Download className="size-4" />
-          Exportar PDF
-        </button>
-      </div>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-3">
-          <DetailItem label="Código" value={registro.codigo} />
-          <DetailItem label="Fecha de creación" value={registro.fecha} />
-          <DetailItem label="Empresa" value={registro.empresa} />
-          <DetailItem label="Estado actual" value={<span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${estadoBadgeClassName[estadoActual]}`}>{estadoLabels[estadoActual]}</span>} />
-          <DetailItem label="Responsable actual" value={registro.responsableActualNombre ?? roleLabels[registro.responsableActual]} />
-          <DetailItem label="Creador" value={registro.creadorNombre ?? registro.creadorId} />
-          <DetailItem label="Líder de proceso" value={registro.liderProceso} />
-          <DetailItem label="Proceso" value={registro.detalle.proceso} />
-          <DetailItem label="Tipo de cambio" value={registro.tipoCambio} />
-          <DetailItem label="Aprobador seleccionado" value={registro.aprobadorSeleccionadoNombre} />
-          <DetailItem label="Fecha de aprobación" value={registro.fechaAprobacion} />
-          <DetailItem label="Fecha límite de cierre" value={registro.fechaLimiteCierre} />
-          <DetailItem label="Días restantes" value={diasRestantes === null ? "" : diasRestantes} />
-          <DetailItem label="Estado del cierre" value={getEstadoCierre(registro)} />
+    <div className="space-y-4 text-[#111a32]">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-5 bg-[radial-gradient(circle_at_92%_0%,rgba(16,185,129,0.12),transparent_36%)] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <span className="grid size-14 shrink-0 place-items-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-700">
+              <ShieldCheck className="size-7" />
+            </span>
+            <div>
+              <p className="text-[12px] font-black uppercase tracking-[0.34em] text-emerald-700">Vista previa</p>
+              <h2 className="mt-1 text-2xl font-black tracking-tight text-[#071127]">Gestión de Cambio</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-500">{registro.codigo} · {registro.empresa}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+            <span className={`inline-flex rounded-full border px-4 py-2 text-sm font-black ${estadoBadgeClassName[estadoActual]}`}>
+              {estadoLabels[estadoActual]}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTimelineOpen(true)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-black text-slate-600 shadow-sm transition hover:border-blue-500 hover:text-blue-700"
+            >
+              <Clock3 className="size-4" />
+              Historial
+            </button>
+            {canExportPdf ? (
+              <button
+                type="button"
+                onClick={exportPdf}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-800"
+              >
+                <Download className="size-4" />
+                PDF
+              </button>
+            ) : null}
+          </div>
         </div>
       </section>
 
-      {(registro.aprobaciones ?? []).some((item) => item.firma) ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-black text-slate-950">Firmas y revisiones registradas</h3>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {(registro.aprobaciones ?? [])
-              .filter((item) => item.firma)
-              .map((item, index) => (
-                <div key={`${item.rolAprobador}-${item.nombre}-${item.fecha}-${index}`} className="border-l-4 border-emerald-700 bg-slate-50 p-4">
-                  <p className="text-xs font-black uppercase text-emerald-800">{roleLabels[item.rolAprobador]}</p>
-                  <p className="mt-1 text-sm font-bold text-slate-950">{item.nombre}</p>
-                  <p className="text-xs font-semibold text-slate-500">{item.cargo} · {item.fecha}</p>
-                  <Image
-                    src={item.firma!}
-                    alt={`Firma de ${item.nombre}`}
-                    width={420}
-                    height={120}
-                    unoptimized
-                    className="mt-3 h-20 w-full object-contain object-left"
-                  />
-                  <p className="mt-2 text-xs leading-5 text-slate-600">{item.observaciones}</p>
-                </div>
-              ))}
-          </div>
-        </section>
-      ) : null}
+      <section className="grid gap-3 md:grid-cols-3">
+        <DetailItem label="Código" value={registro.codigo} icon={<Hash className="size-4" />} />
+        <DetailItem label="Fecha" value={formatDisplayDate(registro.fechaHora ?? registro.fecha)} icon={<CalendarDays className="size-4 text-emerald-600" />} />
+        <DetailItem label="Empresa" value={registro.empresa} icon={<Building2 className="size-4 text-violet-600" />} />
+        <DetailItem label="Proceso" value={registro.detalle.proceso} icon={<Workflow className="size-4" />} />
+        <DetailItem label="Tipo de cambio" value={registro.tipoCambio} icon={<Tag className="size-4 text-orange-600" />} />
+        <DetailItem label="Responsable actual" value={registro.responsableActualNombre ?? roleLabels[registro.responsableActual]} icon={<UserCheck className="size-4" />} />
+      </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-base font-black text-slate-950">Análisis asociados al cambio</h3>
+      <section>
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600">
+              <Users className="size-5" />
+            </span>
+            <div>
+              <h3 className="text-base font-black text-[#111a32]">Responsables del registro</h3>
+              <p className="mt-1 text-sm font-medium text-slate-500">Personas asociadas al flujo de gestión del cambio.</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Creador</p>
+              <p className="mt-2 text-sm font-black uppercase text-[#111a32]">{registro.creadorNombre ?? registro.creadorId}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Líder de proceso</p>
+              <p className="mt-2 text-sm font-black uppercase text-[#111a32]">{registro.liderProceso}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Aprobador seleccionado</p>
+              <p className="mt-2 text-sm font-black uppercase text-[#111a32]">{registro.aprobadorSeleccionadoNombre || "Sin asignar"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Cierre</p>
+              <p className="mt-2 text-sm font-black uppercase text-[#111a32]">{getEstadoCierre(registro) || "Sin cierre"}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <SectionCard title="Observaciones" subtitle="Registro de revisión, aprobación y seguimiento." icon={<MessageSquareText className="size-5" />}>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Calidad</p>
+            <div className="mt-2 min-h-20 rounded-lg bg-slate-50 p-4 text-sm font-medium leading-6 text-slate-700">
+              {registro.validacionCalidad || registro.observacionesCorreccion || "Sin observaciones registradas."}
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Aprobación / seguimiento</p>
+            <div className="mt-2 min-h-20 rounded-lg bg-emerald-50 p-4 text-sm font-semibold leading-6 text-emerald-900">
+              {registro.aprobacion?.observaciones || registro.seguimiento?.observaciones || "Pendiente de gestión."}
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Análisis asociados al cambio" subtitle="Información registrada sobre impactos, riesgos y elementos afectados." icon={<Tag className="size-5" />}>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {analisisFields.map((field) => (
             <DetailItem key={field.id} label={field.label} value={registro.detalle.analisis[field.id]} />
           ))}
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-base font-black text-slate-950">Plan para implementación</h3>
+      <SectionCard title="Plan para implementación" subtitle="Actividades, responsables y fechas definidas para ejecutar el cambio." icon={<Workflow className="size-5" />}>
         {registro.detalle.plan.length > 0 ? (
           <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
-            <div className="grid grid-cols-[1.4fr_1fr_9rem] border-y border-slate-200 bg-[#f4f7fb] text-[11px] font-black uppercase tracking-wide text-slate-600">
+            <div className="grid grid-cols-[1.4fr_1fr_9rem] border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-blue-50 text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
               <div className="px-4 py-3"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Actividades</TableHeadLabel></div>
               <div className="border-l border-slate-200 px-4 py-3"><TableHeadLabel icon={<UserCheck className="size-3.5" />}>Responsable</TableHeadLabel></div>
               <div className="border-l border-slate-200 px-4 py-3"><TableHeadLabel icon={<CalendarDays className="size-3.5" />}>Fecha</TableHeadLabel></div>
@@ -570,16 +564,18 @@ export function GestionCambioDetalle({
         ) : (
           <p className="mt-3 text-sm text-slate-500">No se agregaron actividades al plan.</p>
         )}
-      </section>
+      </SectionCard>
 
       {showApprovalActions ? (
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-start gap-3">
-            <FilePenLine className="mt-1 size-5 text-emerald-800" />
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+              <FilePenLine className="size-5" />
+            </span>
             <div className="w-full space-y-5">
               <div>
-                <h3 className="text-base font-black text-slate-950">Acciones del flujo</h3>
-                <p className="mt-1 text-sm leading-6 text-slate-600">Solo se habilitan las acciones correspondientes al responsable actual.</p>
+                <h3 className="text-base font-black text-[#111a32]">Acciones del flujo</h3>
+                <p className="mt-1 text-sm font-medium leading-6 text-slate-500">Solo se habilitan las acciones correspondientes al responsable actual.</p>
               </div>
 
               {isQualityReview ? renderRevisionCalidad() : null}
@@ -613,35 +609,54 @@ export function GestionCambioDetalle({
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-base font-black text-slate-950">Línea de tiempo del registro</h3>
-        <div className="mt-4 overflow-hidden rounded-md border border-slate-200">
-          {registro.historial.length > 0 ? (
-            <div className="divide-y divide-slate-100">
-              {[...registro.historial]
-                .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
-                .map((evento) => (
-                  <div key={`${evento.fecha}-${evento.accion}`} className="grid gap-2 bg-white px-4 py-3 text-sm md:grid-cols-[1.2fr_1fr_12rem] md:items-center">
-                    <div>
-                      <p className="font-bold text-slate-950">{actionLabels[evento.accion]}</p>
-                      <p className="text-xs font-semibold text-slate-500">{evento.usuario}</p>
-                    </div>
-                    <div>
-                      {evento.estadoNuevo ? (
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${estadoBadgeClassName[evento.estadoNuevo]}`}>
-                          {estadoLabels[evento.estadoNuevo]}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-xs font-semibold text-slate-500 md:text-right">{formatTimelineDate(evento.fecha)}</p>
+      {timelineOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4">
+          <section className="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+            <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-950">Línea de tiempo del registro</h3>
+                <p className="mt-1 text-xs font-semibold text-slate-500">{registro.codigo}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTimelineOpen(false)}
+                className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100"
+                aria-label="Cerrar línea de tiempo"
+              >
+                <X className="size-4" />
+              </button>
+            </header>
+            <div className="overflow-y-auto p-4">
+              <div className="overflow-hidden rounded-md border border-slate-200">
+                {registro.historial.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {[...registro.historial]
+                      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+                      .map((evento) => (
+                        <div key={`${evento.fecha}-${evento.accion}`} className="grid gap-2 bg-white px-4 py-3 text-sm md:grid-cols-[1.2fr_1fr_12rem] md:items-center">
+                          <div>
+                            <p className="font-bold text-slate-950">{actionLabels[evento.accion]}</p>
+                            <p className="text-xs font-semibold text-slate-500">{evento.usuario}</p>
+                          </div>
+                          <div>
+                            {evento.estadoNuevo ? (
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${estadoBadgeClassName[evento.estadoNuevo]}`}>
+                                {estadoLabels[evento.estadoNuevo]}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-xs font-semibold text-slate-500 md:text-right">{formatTimelineDate(evento.fecha)}</p>
+                        </div>
+                      ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="p-4 text-sm text-slate-500">Sin movimientos registrados.</p>
+                )}
+              </div>
             </div>
-          ) : (
-            <p className="p-4 text-sm text-slate-500">Sin movimientos registrados.</p>
-          )}
+          </section>
         </div>
-      </section>
+      ) : null}
     </div>
   );
 }

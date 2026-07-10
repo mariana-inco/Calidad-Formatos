@@ -72,7 +72,6 @@ const usuariosRocaTemporal: UsuarioGestionCambio[] = [
 type WorkflowPayload = {
   observacionesCorreccion?: string;
   validacionCalidad?: string;
-  firmaRevisionCalidad?: string;
   aprobadorSeleccionadoId?: string;
   aprobacion?: AprobacionCambioData;
   seguimiento?: SeguimientoCambioData;
@@ -243,7 +242,6 @@ function historyEntry(
   extra?: {
     type?: "HISTORIAL" | "APROBACION" | "SEGUIMIENTO";
     approved?: boolean;
-    signature?: string;
     effective?: boolean;
     followupActions?: string;
   },
@@ -263,7 +261,6 @@ function historyEntry(
     selectedApproverName: approver?.nombre,
     selectedApproverRole: approver?.rol,
     approved: extra?.approved,
-    signature: extra?.signature,
     effective: extra?.effective,
     followupActions: extra?.followupActions,
   };
@@ -491,7 +488,6 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
       const approval = payload.aprobacion;
       if (!approval) throw new Error("Completa la decisión del líder.");
       required(approval.observaciones, "Las observaciones");
-      required(approval.firma, "La firma");
       const approved = action === "APROBAR_LIDER";
       const quality = approved
         ? findUser({ empresa: current.company as UsuarioGestionCambio["empresa"], rol: "GESTION_CALIDAD" })
@@ -513,7 +509,6 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
         data: historyEntry(id, actor, action, current.currentState, nextState, approval.observaciones.trim(), null, {
           type: "APROBACION",
           approved,
-          signature: approval.firma,
         }),
       });
       return;
@@ -540,7 +535,6 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
       const approver = findApprover(approverId, current.company);
       if (!approver) throw new Error("El aprobador seleccionado no está disponible.");
       const observation = required(payload.validacionCalidad, "La validación de Calidad");
-      const signature = required(payload.firmaRevisionCalidad, "La firma de la revisión de Calidad");
       await tx.registroGestionCambio.update({
         where: { id },
         data: {
@@ -559,7 +553,6 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
         data: historyEntry(id, actor, action, current.currentState, "PENDIENTE_APROBACION", observation, approver, {
           type: "APROBACION",
           approved: true,
-          signature,
         }),
       });
       return;
@@ -569,7 +562,6 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
       const approval = payload.aprobacion;
       if (!approval) throw new Error("Completa la decisión de aprobación.");
       required(approval.observaciones, "Las observaciones");
-      required(approval.firma, "La firma");
       const approved = action === "REGISTRAR_APROBACION";
       const now = new Date();
       const closeDueAt = new Date(now);
@@ -600,7 +592,6 @@ export async function applyWorkflow(id: string, userId: string, action: GestionC
         data: historyEntry(id, actor, action, current.currentState, nextState, approval.observaciones.trim(), null, {
           type: "APROBACION",
           approved,
-          signature: approval.firma,
         }),
       });
       return;

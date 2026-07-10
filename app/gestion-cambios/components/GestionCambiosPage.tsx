@@ -10,7 +10,7 @@ import { SolicitudCambioForm } from "./GestionCambiosForm";
 import { GestionCambiosTabs, type GestionCambiosTab } from "./GestionCambiosTabs";
 import { HistorialGestionCambiosTable } from "./HistorialGestionCambiosTable";
 import type { GestionCambio, GestionCambioEmpresa, GestionCambioWorkflowAction, SolicitudCambioData, UsuarioGestionCambio } from "./types";
-import { canAccessApproval, filterRegistrosForCreation, roleLabels } from "./workflow";
+import { filterRegistrosForCreation, roleLabels } from "./workflow";
 
 const FORM_ID = "solicitud-cambio-form";
 const empresaActiva: GestionCambioEmpresa = "Incominería";
@@ -59,17 +59,17 @@ export function GestionCambiosPage() {
     [usuarioActualId, usuarios],
   );
 
-  const registrosCreacion = useMemo(() => filterRegistrosForCreation(registros, usuarioActual), [registros, usuarioActual]);
-  const canShowApproval = canAccessApproval(usuarioActual);
+  const registrosEmpresa = useMemo(() => registros.filter((registro) => registro.empresa === empresaActiva), [registros]);
+  const registrosCreacion = useMemo(() => filterRegistrosForCreation(registrosEmpresa, usuarioActual), [registrosEmpresa, usuarioActual]);
   const resumen = useMemo(
     () => ({
-      total: registros.length,
-      aprobados: registros.filter((registro) => registro.estado === "APROBADO" || registro.estado === "CERRADO").length,
-      enProceso: registros.filter((registro) => registro.estado === "EN_REVISION_CALIDAD" || registro.estado === "EN_SEGUIMIENTO_CALIDAD").length,
-      pendientes: registros.filter((registro) => registro.estado === "PENDIENTE_APROBACION" || registro.estado === "PENDIENTE_APROBACION_LIDER").length,
-      rechazados: registros.filter((registro) => registro.estado === "RECHAZADO_LIDER" || registro.estado === "RECHAZADO_APROBADOR").length,
+      total: registrosEmpresa.length,
+      aprobados: registrosEmpresa.filter((registro) => registro.estado === "APROBADO" || registro.estado === "CERRADO").length,
+      enProceso: registrosEmpresa.filter((registro) => registro.estado === "EN_REVISION_CALIDAD" || registro.estado === "EN_SEGUIMIENTO_CALIDAD").length,
+      pendientes: registrosEmpresa.filter((registro) => registro.estado === "PENDIENTE_APROBACION" || registro.estado === "PENDIENTE_APROBACION_LIDER").length,
+      rechazados: registrosEmpresa.filter((registro) => registro.estado === "RECHAZADO_LIDER" || registro.estado === "RECHAZADO_APROBADOR").length,
     }),
-    [registros],
+    [registrosEmpresa],
   );
 
   const openCreateModal = () => {
@@ -207,7 +207,7 @@ export function GestionCambiosPage() {
         </div>
       ) : null}
       <div className="mx-auto max-w-[1360px] space-y-5">
-        <GestionCambiosTabs activeTab={activeTab} onChange={setActiveTab} showApproval={canShowApproval} />
+        <GestionCambiosTabs activeTab={activeTab} onChange={setActiveTab} />
 
         {activeTab === "creacion" ? (
           <>
@@ -283,7 +283,7 @@ export function GestionCambiosPage() {
             </section>
           </>
         ) : activeTab === "aprobacion" ? (
-          <AprobacionGestionCambiosView registros={registros} usuarioActual={usuarioActual} onView={openViewModal} onEdit={openEditModal} />
+          <AprobacionGestionCambiosView registros={registrosEmpresa} usuarioActual={usuarioActual} onView={openViewModal} onEdit={openEditModal} />
         ) : (
           <ConfiguracionRolesView
             usuarios={usuarios}

@@ -16,7 +16,7 @@ type CustomInputProps = {
 };
 
 const baseInputClassName =
-  "block h-12 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-[#08142f] outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100";
+  "block h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-[#08142f] outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100";
 
 export function CustomInput({ id, label, type = "text", instance = 0, options = [], value, placeholder, icon, onChange }: CustomInputProps) {
   const inputId = instance ? `${id}-${instance}` : id;
@@ -74,7 +74,7 @@ export function CustomInput({ id, label, type = "text", instance = 0, options = 
                 setIsOpen(false);
               }
             }}
-            className="flex h-12 w-full items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-left text-sm font-semibold text-[#08142f] outline-none transition focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            className="flex h-10 w-full items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm font-semibold text-[#08142f] outline-none transition focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100"
           >
             <span className={`min-w-0 flex-1 truncate ${selectedValue ? "" : "text-slate-500"}`}>{selectedLabel || placeholder || "Seleccione una opción"}</span>
             <ChevronDown className={`size-5 shrink-0 text-slate-600 transition ${isOpen ? "rotate-180" : ""}`} />

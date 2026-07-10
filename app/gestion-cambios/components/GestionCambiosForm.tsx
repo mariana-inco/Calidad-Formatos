@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, ClipboardList, FilePenLine, FileText, GitBranch, Leaf, Pencil, ShieldAlert, Trash2, TriangleAlert, Users, Wrench } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Building2, ChevronDown, ClipboardList, FilePenLine, FileText, GitBranch, Info, Leaf, Pencil, Search, ShieldAlert, Trash2, TriangleAlert, Users, Wrench, X } from "lucide-react";
 import { ButtonAdd } from "./ButtonAdd";
 import { CustomInput } from "./CustomInput";
 import { SectionWrapper } from "./SectionWrapper";
@@ -65,12 +65,27 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
   const [planForm, setPlanForm] = useState(emptyPlanForm);
   const [planRows, setPlanRows] = useState<PlanActividad[]>(() => initialData?.plan ?? []);
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [responsableSearchOpen, setResponsableSearchOpen] = useState(false);
+  const [guideFieldId, setGuideFieldId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const isTipoCambioOtros = tipoCambioSeleccionado === "OTROS";
   const isCurrentUserLeader = usuarioActual?.rol === "LIDER_PROCESO";
   const leaderOptions = isCurrentUserLeader
     ? lideresProceso.filter((usuario) => usuario.id !== usuarioActual.id)
     : lideresProceso;
+  const responsableSearchValue = planForm.responsable;
+  const responsablesFiltrados = useMemo(() => {
+    const query = responsableSearchValue.trim().toLocaleLowerCase("es");
+    if (!query) return usuariosResponsables.slice(0, 8);
+
+    return usuariosResponsables
+      .filter((usuario) =>
+        [usuario.nombre, usuario.cargo, usuario.correo, usuario.proceso, usuario.empresa]
+          .filter(Boolean)
+          .some((value) => value!.toLocaleLowerCase("es").includes(query)),
+      )
+      .slice(0, 8);
+  }, [responsableSearchValue, usuariosResponsables]);
 
   const updateSolicitudValue = (fieldId: string, value: string) => {
     setSolicitudValues((current) => ({ ...current, [fieldId]: value }));
@@ -112,17 +127,25 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
 
   const actualizarPlanForm = (fieldId: string, value: string) => {
     if (fieldId === "responsable") {
-      const responsable = usuariosResponsables.find((usuario) => usuario.id === value);
       setPlanForm((form) => ({
         ...form,
-        responsableId: responsable?.id ?? "",
-        responsable: responsable?.nombre ?? "",
+        responsableId: "",
+        responsable: value,
       }));
       return;
     }
     if (fieldId === "actividades" || fieldId === "fecha") {
       setPlanForm((form) => ({ ...form, [fieldId]: value }));
     }
+  };
+
+  const seleccionarResponsablePlan = (usuario: UsuarioGestionCambio) => {
+    setPlanForm((form) => ({
+      ...form,
+      responsableId: usuario.id,
+      responsable: usuario.nombre,
+    }));
+    setResponsableSearchOpen(false);
   };
 
   const agregarPlan = () => {
@@ -207,12 +230,12 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
   };
 
   return (
-    <form id={formId} onSubmit={submitSolicitud} className="space-y-5 text-[#08142f]">
+    <form id={formId} onSubmit={submitSolicitud} className="space-y-4 text-[#08142f]">
         {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
 
         <SectionWrapper title="1. SOLICITUD DEL CAMBIO" icon={<FilePenLine className="size-5" />}>
-          <div className="space-y-7">
-            <div className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-4">
+            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               {solicitudFields.map((field) => (
                 <CustomInput
                   key={field.id}
@@ -312,9 +335,9 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
         </SectionWrapper>
 
         <SectionWrapper title="2. ANÁLISIS ASOCIADOS AL CAMBIO" icon={<ClipboardList className="size-5" />}>
-          <div className="grid gap-x-9 gap-y-8 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             {analisisFields.map((field) => (
-              <div key={field.id} className="space-y-3">
+              <div key={field.id} className="space-y-2">
                 <CustomInput
                   id={field.id}
                   label={field.label}
@@ -324,46 +347,93 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                   value={analisisValues[field.id] ?? ""}
                   onChange={(value) => updateAnalisisValue(field.id, value)}
                 />
-                <div className="rounded-md border border-slate-200 bg-[#f8fbff] px-3 py-2 text-xs leading-5 text-slate-600">
-                  <p className="font-black text-[#08142f]">Preguntas guía para redactar:</p>
-                  <ul className="mt-1 space-y-1">
-                    {(analisisGuideQuestions[field.id as keyof typeof analisisGuideQuestions] ?? []).map((question) => (
-                      <li key={question}>{question}</li>
-                    ))}
-                  </ul>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setGuideFieldId(field.id)}
+                  className="inline-flex items-center gap-1 text-xs font-black text-blue-700 transition hover:text-blue-900"
+                >
+                  <Info className="size-3.5" />
+                  Ver preguntas guía
+                </button>
               </div>
             ))}
           </div>
         </SectionWrapper>
 
         <SectionWrapper title="3. PLAN PARA IMPLEMENTACIÓN DEL CAMBIO">
-          <div className="space-y-8">
+          <div className="space-y-5">
             <div className="flex flex-col items-center justify-center gap-3 text-center lg:flex-row">
               <p className="text-sm font-bold italic text-[#08142f]">
                 Escriba las actividades necesarias para la implementación del cambio propuesto, incluidas las actividades para control de riesgos SST y de impactos ambientales, luego oprima el botón
               </p>
             </div>
 
-            <div className="grid items-end gap-5 lg:grid-cols-[minmax(18rem,1.2fr)_minmax(16rem,0.8fr)_minmax(12rem,0.45fr)]">
+            <div className="grid items-end gap-4 lg:grid-cols-[minmax(18rem,1.2fr)_minmax(16rem,0.8fr)_minmax(12rem,0.45fr)]">
               {planFields.map((field) => (
+                field.id === "responsable" ? (
+                  <div key={field.id} className="relative">
+                    <label htmlFor={field.id} className="flex items-center gap-2 text-[11px] font-black text-[#08142f]">
+                      {field.label}
+                    </label>
+                    <div className="relative mt-2">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        id={field.id}
+                        value={planForm.responsable}
+                        onFocus={() => setResponsableSearchOpen(true)}
+                        onChange={(event) => {
+                          actualizarPlanForm(field.id, event.target.value);
+                          setResponsableSearchOpen(true);
+                        }}
+                        onBlur={() => window.setTimeout(() => setResponsableSearchOpen(false), 150)}
+                        placeholder="Escriba para buscar usuario responsable"
+                        autoComplete="off"
+                        className="block h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 pl-10 pr-10 text-sm font-semibold text-[#08142f] outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                      />
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-slate-600" />
+                    </div>
+                    {responsableSearchOpen ? (
+                      <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-xl">
+                        {responsablesFiltrados.length > 0 ? (
+                          responsablesFiltrados.map((usuario) => (
+                            <button
+                              key={usuario.id}
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => seleccionarResponsablePlan(usuario)}
+                              className="flex w-full items-start justify-between gap-3 rounded-md px-3 py-2 text-left transition hover:bg-blue-50"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-black text-[#08142f]">{usuario.nombre}</span>
+                                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">
+                                  {[usuario.cargo, usuario.proceso, usuario.correo].filter(Boolean).join(" · ")}
+                                </span>
+                              </span>
+                              <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black uppercase text-blue-700">
+                                {usuario.empresa}
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-3 text-sm font-semibold text-slate-500">No hay usuarios que coincidan con la búsqueda.</p>
+                        )}
+                      </div>
+                    ) : null}
+                    {planForm.responsable && !planForm.responsableId ? (
+                      <p className="mt-2 text-xs font-semibold text-amber-700">Selecciona un usuario de la lista para asociarlo al registro.</p>
+                    ) : null}
+                  </div>
+                ) : (
                 <CustomInput
                   key={field.id}
                   id={field.id}
                   label={field.label}
-                  type={field.id === "responsable" ? "select" : field.type}
-                  placeholder={field.id === "responsable" ? "Seleccione un usuario responsable" : field.placeholder}
-                  options={
-                    field.id === "responsable"
-                      ? usuariosResponsables.map((usuario) => ({
-                          value: usuario.id,
-                          label: `${usuario.nombre}${usuario.cargo ? ` - ${usuario.cargo}` : ""}`,
-                        }))
-                      : undefined
-                  }
-                  value={field.id === "responsable" ? planForm.responsableId : planForm[field.id]}
+                  type={field.type}
+                  placeholder={field.placeholder}
+                  value={planForm[field.id]}
                   onChange={(value) => actualizarPlanForm(field.id, value)}
                 />
+                )
               ))}
             </div>
 
@@ -430,6 +500,36 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
             {isCurrentUserLeader && !liderProcesoId ? "Enviar a Calidad" : "Enviar al líder del proceso"}
           </button>
         </div>
+
+        {guideFieldId ? (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4">
+            <div className="w-full max-w-md rounded-lg bg-white shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3">
+                <div>
+                  <h3 className="text-base font-black text-[#08142f]">Preguntas guía</h3>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {analisisFields.find((field) => field.id === guideFieldId)?.label}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGuideFieldId(null)}
+                  className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100"
+                  aria-label="Cerrar preguntas guía"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <ul className="space-y-2 px-4 py-4 text-sm leading-6 text-slate-700">
+                {(analisisGuideQuestions[guideFieldId as keyof typeof analisisGuideQuestions] ?? []).map((question) => (
+                  <li key={question} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                    {question}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
     </form>
   );
 }

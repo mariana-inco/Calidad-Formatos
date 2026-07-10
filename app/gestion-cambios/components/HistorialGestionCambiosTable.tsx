@@ -113,17 +113,17 @@ export function HistorialGestionCambiosTable({
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
           <thead className="bg-[#eef3f8] text-[11px] font-black text-slate-700">
             <tr className="border-y border-slate-200">
-              <th className="px-4 py-4"><TableHeadLabel icon={<CalendarDays className="size-3.5" />}>Fecha</TableHeadLabel></th>
-              <th className="px-4 py-4"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Empresa</TableHeadLabel></th>
-              <th className="px-4 py-4"><TableHeadLabel icon={<UserRound className="size-3.5" />}>Líder de proceso</TableHeadLabel></th>
-              <th className="px-4 py-4"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Proceso</TableHeadLabel></th>
-              <th className="px-4 py-4"><TableHeadLabel icon={<Tags className="size-3.5" />}>Tipo de cambio</TableHeadLabel></th>
-              <th className="px-4 py-4"><TableHeadLabel icon={<CircleDot className="size-3.5" />}>Estado</TableHeadLabel></th>
-              <th className="px-4 py-4"><TableHeadLabel icon={<UserCheck className="size-3.5" />}>Responsable actual</TableHeadLabel></th>
-              <th className="px-4 py-4 text-center">Detalles</th>
+              <th className="w-28 px-3 py-3"><TableHeadLabel icon={<CalendarDays className="size-3.5" />}>Fecha</TableHeadLabel></th>
+              <th className="w-28 px-3 py-3"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Empresa</TableHeadLabel></th>
+              <th className="w-40 px-3 py-3"><TableHeadLabel icon={<UserRound className="size-3.5" />}>Líder de proceso</TableHeadLabel></th>
+              <th className="w-40 px-3 py-3"><TableHeadLabel icon={<Workflow className="size-3.5" />}>Proceso</TableHeadLabel></th>
+              <th className="w-[260px] px-3 py-3"><TableHeadLabel icon={<Tags className="size-3.5" />}>Tipo de cambio</TableHeadLabel></th>
+              <th className="w-44 px-3 py-3"><TableHeadLabel icon={<CircleDot className="size-3.5" />}>Estado</TableHeadLabel></th>
+              <th className="w-44 px-3 py-3"><TableHeadLabel icon={<UserCheck className="size-3.5" />}>Responsable actual</TableHeadLabel></th>
+              <th className="w-28 px-3 py-3 text-center">Detalles</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -132,14 +132,18 @@ export function HistorialGestionCambiosTable({
 
               return (
                 <tr key={registro.id} className="border-l-4 border-l-amber-400 text-slate-700 transition hover:bg-blue-50/40">
-                  <td className="px-4 py-4"><FechaHora registro={registro} /></td>
-                  <td className="px-4 py-4 font-bold text-[#08142f]">{registro.empresa}</td>
-                  <td className="px-4 py-4 font-black uppercase text-[#08142f]">{registro.liderProceso}</td>
-                  <td className="px-4 py-4">{registro.proceso}</td>
-                  <td className="max-w-xs px-4 py-4 leading-6">{registro.tipoCambio}</td>
-                  <td className="px-4 py-4"><EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} /></td>
-                  <td className="px-4 py-4 font-semibold">{registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-3"><FechaHora registro={registro} /></td>
+                  <td className="truncate px-3 py-3 font-bold text-[#08142f]" title={registro.empresa}>{registro.empresa}</td>
+                  <td className="truncate px-3 py-3 text-xs font-bold uppercase tracking-wide text-[#1f2a44]" title={registro.liderProceso}>{registro.liderProceso}</td>
+                  <td className="truncate px-3 py-3" title={registro.proceso}>{registro.proceso}</td>
+                  <td className="px-3 py-3">
+                    <div className="max-w-[260px] truncate leading-5" title={registro.tipoCambio}>
+                      {registro.tipoCambio}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3"><EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} /></td>
+                  <td className="truncate px-3 py-3 font-semibold" title={registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}>{registro.responsableActualNombre ?? roleLabels[registro.responsableActual]}</td>
+                  <td className="px-3 py-3">
                     <div className="flex items-center justify-center gap-2">
                       <ActionButton label="Ver detalle" onClick={() => onView(registro)}><Eye className="size-4" /></ActionButton>
                       {showEdit ? <ActionButton label="Editar formato" onClick={() => onEdit?.(registro)}><Pencil className="size-4" /></ActionButton> : null}
@@ -160,7 +164,7 @@ export function HistorialGestionCambiosTable({
             <article key={registro.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-bold text-slate-950">{registro.liderProceso}</h3>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">{registro.liderProceso}</h3>
                 </div>
                 <EstadoBadge registro={registro} getEstadoBadge={getEstadoBadge} />
               </div>

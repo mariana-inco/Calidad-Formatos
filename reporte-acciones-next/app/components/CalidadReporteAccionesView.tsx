@@ -7,8 +7,8 @@ import type { ReporteAccionesRegistro, ReporteEstado, ReporteRevision } from "./
 
 type Mode = "aprobacion" | "eficacia";
 
-const inputClass = "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
-const textareaClass = "min-h-24 w-full resize-y rounded-md border border-slate-300 bg-white p-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
+const inputClass = "h-11 w-full rounded-md border border-[#cbd6e4] bg-white px-3 text-sm font-semibold text-[#071127] outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
+const textareaClass = "min-h-24 w-full resize-y rounded-md border border-[#cbd6e4] bg-white p-3 text-sm font-semibold text-[#071127] outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 
 function now() {
   return new Date().toISOString();
@@ -48,6 +48,7 @@ export function CalidadReporteAccionesView({
   const [selected, setSelected] = useState<ReporteAccionesRegistro | null>(null);
   const [observation, setObservation] = useState("");
   const [followupDate, setFollowupDate] = useState("");
+  const [effectivenessOwner, setEffectivenessOwner] = useState("");
   const [signature, setSignature] = useState("");
   const [effective, setEffective] = useState<boolean | null>(null);
   const [decision, setDecision] = useState<"" | "Cerrar reporte" | "Reabrir acción" | "Crear nueva acción">("");
@@ -69,6 +70,7 @@ export function CalidadReporteAccionesView({
     setSelected(null);
     setObservation("");
     setFollowupDate("");
+    setEffectivenessOwner("");
     setSignature("");
     setEffective(null);
     setDecision("");
@@ -85,6 +87,10 @@ export function CalidadReporteAccionesView({
     }
     if (approved && !followupDate) {
       setError("Define la fecha de seguimiento de eficacia antes de aprobar.");
+      return;
+    }
+    if (approved && !effectivenessOwner.trim()) {
+      setError("Define el responsable de validar la eficacia antes de aprobar.");
       return;
     }
     if (!signature) {
@@ -113,6 +119,7 @@ export function CalidadReporteAccionesView({
         estado: state,
         aprobadorActual: selected.liderProceso,
         fechaSeguimientoEficacia: approved ? followupDate : selected.detalle.fechaSeguimientoEficacia,
+        responsableValidarEficacia: approved ? effectivenessOwner.trim() : selected.detalle.responsableValidarEficacia,
         observacionesCalidad: observation.trim(),
         revisiones: [...(selected.detalle.revisiones ?? []), review],
         historial: addHistory(selected, state, approved ? "Aprobó el reporte" : "Devolvió para corrección", observation.trim()),
@@ -133,8 +140,8 @@ export function CalidadReporteAccionesView({
 
   const saveEffectiveness = () => {
     if (!selected) return;
-    if (effective === null || !observation.trim() || !evidence || !decision || !signature) {
-      setError("Completa el resultado, la observación, la evidencia, la decisión y la firma.");
+    if (effective === null || !observation.trim() || !decision || !signature) {
+      setError("Completa el resultado, la observación, la decisión y la firma.");
       return;
     }
     if (effective && decision !== "Cerrar reporte") {
@@ -194,15 +201,22 @@ export function CalidadReporteAccionesView({
 
   return (
     <section className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-black uppercase text-slate-950">
-          {mode === "aprobacion" ? "Pendientes de revisión" : "Validación de eficacia"}
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {mode === "aprobacion"
-            ? "Reportes enviados a Gestión de Calidad para revisión inicial."
-            : "Reportes implementados que requieren comprobar su eficacia."}
-        </p>
+      <header className="overflow-hidden rounded-lg bg-[#111935] text-white shadow-lg shadow-slate-400/30 ring-1 ring-indigo-200">
+        <div className="flex items-center gap-4 bg-[radial-gradient(circle_at_82%_0%,rgba(61,72,140,0.62),transparent_34%)] px-5 py-5 sm:px-7">
+          <span className="grid size-12 shrink-0 place-items-center rounded-md border border-white/15 bg-white/10 text-white shadow-inner">
+            <ShieldCheck className="size-6" />
+          </span>
+          <div>
+            <h1 className="text-xl font-black text-white sm:text-2xl">
+              {mode === "aprobacion" ? "Revisión de Reportes de Acciones" : "Validación de Eficacia"}
+            </h1>
+            <p className="mt-1 text-xs font-medium leading-5 text-slate-200">
+              {mode === "aprobacion"
+                ? "Reportes enviados a Gestión de Calidad para revisión inicial."
+                : "Reportes implementados que requieren comprobar su eficacia."}
+            </p>
+          </div>
+        </div>
       </header>
 
       <label className="relative block">
@@ -211,24 +225,24 @@ export function CalidadReporteAccionesView({
       </label>
 
       {filtered.length ? (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-[#d8e2ee] bg-white shadow-sm">
           {filtered.map((registro) => (
             <article key={registro.id} className="grid gap-4 border-b border-slate-100 p-5 last:border-0 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
               <div>
-                <p className="font-black text-emerald-900">{registro.consecutivo}</p>
+                <p className="inline-flex rounded-md bg-[#071127] px-3 py-1.5 text-xs font-black text-white">{registro.consecutivo}</p>
                 <p className="mt-1 text-xs text-slate-500">{new Date(registro.fechaCreacion).toLocaleString("es-CO")}</p>
               </div>
               <div><p className="text-xs font-black uppercase text-slate-500">Proceso</p><p className="font-semibold">{registro.proceso}</p></div>
               <div><p className="text-xs font-black uppercase text-slate-500">Líder</p><p className="font-semibold">{registro.liderProceso}</p></div>
-              <button type="button" onClick={() => setSelected(registro)} className="grid size-10 place-items-center rounded-md border border-slate-300 text-slate-700" title="Revisar">
+              <button type="button" onClick={() => setSelected(registro)} className="grid size-10 place-items-center rounded-md border border-[#cbd6e4] text-[#34435e] transition hover:border-blue-500 hover:text-blue-700" title="Revisar">
                 <Eye className="size-5" />
               </button>
             </article>
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
-          <p className="font-black text-slate-900">No hay reportes pendientes en esta bandeja</p>
+        <div className="rounded-lg border border-dashed border-[#cbd6e4] bg-white p-10 text-center shadow-sm">
+          <p className="font-black text-[#071127]">No hay reportes pendientes en esta bandeja</p>
         </div>
       )}
 
@@ -236,7 +250,7 @@ export function CalidadReporteAccionesView({
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/65 p-3">
           <section className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-2xl">
             <header className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white p-5">
-              <div><p className="text-xs font-black text-emerald-700">{selected.consecutivo}</p><h2 className="text-xl font-black">Revisión de Calidad</h2></div>
+              <div><p className="text-xs font-black text-blue-700">{selected.consecutivo}</p><h2 className="text-xl font-black">Revisión de Calidad</h2></div>
               <button type="button" onClick={close} className="grid size-10 place-items-center rounded-md border border-slate-300"><X className="size-5" /></button>
             </header>
             <div className="space-y-6 p-5">
@@ -247,13 +261,16 @@ export function CalidadReporteAccionesView({
               </div>
 
               {mode === "aprobacion" ? (
-                <label className="block"><span className="text-xs font-black uppercase text-slate-600">Fecha de seguimiento de eficacia</span><input type="date" min={new Date().toISOString().slice(0, 10)} value={followupDate} onChange={(e) => setFollowupDate(e.target.value)} className={`mt-2 ${inputClass}`} /></label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block"><span className="text-xs font-black uppercase text-slate-600">Fecha de seguimiento de eficacia</span><input type="date" min={new Date().toISOString().slice(0, 10)} value={followupDate} onChange={(e) => setFollowupDate(e.target.value)} className={`mt-2 ${inputClass}`} /></label>
+                  <label className="block"><span className="text-xs font-black uppercase text-slate-600">Responsable de validar eficacia</span><input value={effectivenessOwner} onChange={(e) => setEffectivenessOwner(e.target.value)} placeholder="Nombre del responsable" className={`mt-2 ${inputClass}`} /></label>
+                </div>
               ) : (
                 <>
                   <div>
                     <p className="text-xs font-black uppercase text-slate-600">¿La acción fue eficaz?</p>
                     <div className="mt-2 flex gap-3">
-                      <button type="button" onClick={() => setEffective(true)} className={`h-11 rounded-md border px-5 font-bold ${effective === true ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300"}`}>Sí</button>
+                      <button type="button" onClick={() => setEffective(true)} className={`h-11 rounded-md border px-5 font-bold ${effective === true ? "border-blue-600 bg-blue-50 text-blue-800" : "border-slate-300"}`}>Sí</button>
                       <button type="button" onClick={() => setEffective(false)} className={`h-11 rounded-md border px-5 font-bold ${effective === false ? "border-red-700 bg-red-50 text-red-800" : "border-slate-300"}`}>No</button>
                     </div>
                   </div>
@@ -270,10 +287,10 @@ export function CalidadReporteAccionesView({
                 {mode === "aprobacion" ? (
                   <>
                     <button type="button" onClick={() => saveReview(false)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-red-300 px-5 font-bold text-red-700"><RotateCcw className="size-4" /> Solicitar corrección</button>
-                    <button type="button" onClick={() => saveReview(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-800 px-5 font-bold text-white"><CheckCircle2 className="size-4" /> Aprobar</button>
+                    <button type="button" onClick={() => saveReview(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 font-bold text-white transition hover:bg-blue-700"><CheckCircle2 className="size-4" /> Aprobar</button>
                   </>
                 ) : (
-                  <button type="button" onClick={saveEffectiveness} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-800 px-5 font-bold text-white"><ShieldCheck className="size-4" /> Guardar validación</button>
+                  <button type="button" onClick={saveEffectiveness} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 font-bold text-white transition hover:bg-blue-700"><ShieldCheck className="size-4" /> Guardar validación</button>
                 )}
               </div>
             </div>

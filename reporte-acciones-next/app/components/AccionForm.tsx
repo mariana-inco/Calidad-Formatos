@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { CalendarDays, ClipboardList, FileCheck2, FileText, Plus, Target, UserRound } from "lucide-react";
 import { DynamicSelect } from "./DynamicSelect";
 import { tiposAccion } from "./reporteAccionesData";
 import { Field, inputClassName, textareaClassName } from "./Field";
@@ -10,6 +10,9 @@ export type AccionFormState = {
   descripcionAccion: string;
   fechaImplementacion: string;
   responsableImplementacion: string;
+  resultadoEsperado: string;
+  evidenciaRequerida: string;
+  observaciones: string;
 };
 
 type AccionFormProps = {
@@ -25,21 +28,27 @@ export const emptyAccionForm: AccionFormState = {
   descripcionAccion: "",
   fechaImplementacion: "",
   responsableImplementacion: "",
+  resultadoEsperado: "",
+  evidenciaRequerida: "",
+  observaciones: "",
 };
 
 export function AccionForm({ value, isEditing, error, onChange, onSubmit }: AccionFormProps) {
   return (
     <div className="space-y-6">
-      <div className="grid gap-x-6 gap-y-5 lg:grid-cols-3">
+      <h3 className="border-t border-[#dfe7f2] pt-7 text-xl font-black uppercase text-[#020a1f]">Acciones para el reporte</h3>
+
+      <div className="grid gap-x-5 gap-y-4 lg:grid-cols-2">
         <DynamicSelect
           id="tipoAccion"
           label="Tipo de acción"
+          icon={<ClipboardList className="size-5 text-blue-600" />}
           value={value.tipoAccion}
           options={tiposAccion}
           onChange={(tipoAccion) => onChange({ ...value, tipoAccion })}
         />
 
-        <Field id="fechaImplementacion" label="Fecha de implementación">
+        <Field id="fechaImplementacion" label="Fecha de implementación" icon={<CalendarDays className="size-5 text-rose-600" />}>
           <input
             id="fechaImplementacion"
             type="date"
@@ -49,7 +58,7 @@ export function AccionForm({ value, isEditing, error, onChange, onSubmit }: Acci
           />
         </Field>
 
-        <Field id="responsableImplementacion" label="Responsable implementación">
+        <Field id="responsableImplementacion" label="Responsable implementación" icon={<UserRound className="size-5 text-sky-700" />}>
           <input
             id="responsableImplementacion"
             value={value.responsableImplementacion}
@@ -59,17 +68,47 @@ export function AccionForm({ value, isEditing, error, onChange, onSubmit }: Acci
           />
         </Field>
 
-        <div className="lg:col-span-3">
-          <Field id="descripcionAccion" label="Descripción de la acción">
+        <div>
+          <Field id="descripcionAccion" label="Descripción de la acción" icon={<FileText className="size-5 text-fuchsia-600" />}>
             <textarea
               id="descripcionAccion"
               value={value.descripcionAccion}
               onChange={(event) => onChange({ ...value, descripcionAccion: event.target.value })}
               placeholder="Describa la acción que se va a implementar"
-              className={`${textareaClassName} min-h-36`}
+              className={textareaClassName}
             />
           </Field>
         </div>
+
+        <Field id="resultadoEsperado" label="Resultado esperado" icon={<Target className="size-5 text-emerald-600" />}>
+          <textarea
+            id="resultadoEsperado"
+            value={value.resultadoEsperado}
+            onChange={(event) => onChange({ ...value, resultadoEsperado: event.target.value })}
+            placeholder="Resultado que se espera obtener al implementar la acción"
+            className={textareaClassName}
+          />
+        </Field>
+
+        <Field id="evidenciaRequerida" label="Evidencia requerida" icon={<FileCheck2 className="size-5 text-orange-600" />}>
+          <textarea
+            id="evidenciaRequerida"
+            value={value.evidenciaRequerida}
+            onChange={(event) => onChange({ ...value, evidenciaRequerida: event.target.value })}
+            placeholder="Documento, registro, imagen o soporte requerido"
+            className={textareaClassName}
+          />
+        </Field>
+
+        <Field id="observacionesAccion" label="Observaciones" icon={<FileText className="size-5 text-rose-600" />}>
+          <textarea
+            id="observacionesAccion"
+            value={value.observaciones}
+            onChange={(event) => onChange({ ...value, observaciones: event.target.value })}
+            placeholder="Observaciones adicionales de la acción"
+            className={textareaClassName}
+          />
+        </Field>
       </div>
 
       {error ? (
@@ -80,7 +119,7 @@ export function AccionForm({ value, isEditing, error, onChange, onSubmit }: Acci
         <button
           type="button"
           onClick={onSubmit}
-          className="inline-flex h-12 min-w-44 items-center justify-center gap-3 rounded-md bg-emerald-900 px-8 text-sm font-black text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+          className="inline-flex h-11 min-w-44 items-center justify-center gap-3 rounded-md bg-blue-600 px-8 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
         >
           <Plus className="size-5" />
           {isEditing ? "Actualizar" : "Agregar"}

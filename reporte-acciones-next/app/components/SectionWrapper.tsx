@@ -4,7 +4,7 @@ type SectionWrapperProps = {
 
 export function SectionWrapper({ children }: SectionWrapperProps) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="min-w-0 rounded-lg border border-[#dfe7f2] bg-white px-5 py-5 shadow-sm sm:px-7">
       {children}
     </section>
   );

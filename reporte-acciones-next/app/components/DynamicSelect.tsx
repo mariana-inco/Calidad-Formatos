@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 type DynamicSelectProps = {
   id: string;
   label?: string;
+  icon?: React.ReactNode;
   value: string;
   options: readonly string[];
   placeholder?: string;
@@ -13,7 +14,7 @@ type DynamicSelectProps = {
   onChange: (value: string) => void;
 };
 
-export function DynamicSelect({ id, label, value, options, placeholder = "Seleccione una opción", compact = false, onChange }: DynamicSelectProps) {
+export function DynamicSelect({ id, label, icon, value, options, placeholder = "Seleccione una opción", compact = false, onChange }: DynamicSelectProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const displayValue = value || placeholder;
@@ -48,7 +49,8 @@ export function DynamicSelect({ id, label, value, options, placeholder = "Selecc
   return (
     <div ref={wrapperRef} className="relative">
       {label ? (
-        <label htmlFor={id} className="text-xs font-black uppercase tracking-wide text-slate-950">
+        <label htmlFor={id} className="flex items-center gap-2 text-sm font-bold leading-5 text-[#020a1f]">
+          {icon ? <span className="inline-flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">{icon}</span> : null}
           {label}
         </label>
       ) : null}
@@ -62,11 +64,11 @@ export function DynamicSelect({ id, label, value, options, placeholder = "Selecc
         aria-controls={`${id}-options`}
         onClick={() => setIsOpen((open) => !open)}
         onKeyDown={openFromKeyboard}
-        className={`mt-2 flex w-full items-center justify-between gap-3 rounded-md border bg-slate-50 text-left font-semibold text-slate-950 outline-none transition focus:border-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-100 ${
-          compact ? "min-h-9 px-2 text-xs" : "min-h-12 px-3 text-sm"
-        } ${isOpen ? "border-emerald-600 bg-white ring-2 ring-emerald-100" : "border-slate-300"}`}
+        className={`mt-2 flex w-full items-center justify-between gap-3 rounded-md border bg-white text-left font-medium text-[#18314f] outline-none transition focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100 ${
+          compact ? "h-9 px-2 text-xs" : "h-10 px-3 text-sm"
+        } ${isOpen ? "border-blue-600 bg-white ring-2 ring-blue-100" : "border-[#b8c2cf]"}`}
       >
-        <span className={value ? "whitespace-normal break-words" : "text-slate-500"}>{displayValue}</span>
+        <span className={value ? "whitespace-normal break-words" : "text-[#8a9ab5]"}>{displayValue}</span>
         <ChevronDown className={`shrink-0 text-slate-600 transition ${compact ? "size-4" : "size-5"} ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
@@ -96,7 +98,7 @@ export function DynamicSelect({ id, label, value, options, placeholder = "Selecc
                   }
                 }}
                 className={`block w-full whitespace-normal break-words px-4 py-2 text-left leading-5 transition ${
-                  isSelected ? "bg-emerald-50 font-black text-emerald-950" : "text-slate-950 hover:bg-emerald-50"
+                  isSelected ? "bg-blue-50 font-black text-blue-800" : "text-slate-950 hover:bg-blue-50"
                 } ${!option ? "text-slate-500" : ""}`}
               >
                 {optionLabel}

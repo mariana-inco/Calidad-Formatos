@@ -1,7 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Building2, ChevronDown, ClipboardList, FilePenLine, FileText, GitBranch, Info, Leaf, Pencil, Search, ShieldAlert, Trash2, TriangleAlert, Users, Wrench, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Building2,
+  CalendarDays,
+  ChevronDown,
+  ClipboardList,
+  FilePenLine,
+  FileText,
+  GitBranch,
+  Hash,
+  Info,
+  Leaf,
+  ListChecks,
+  Pencil,
+  Search,
+  ShieldAlert,
+  Tag,
+  Trash2,
+  TriangleAlert,
+  UserCheck,
+  UserRound,
+  Users,
+  Wrench,
+  X,
+} from "lucide-react";
 import { ButtonAdd } from "./ButtonAdd";
 import { CustomInput } from "./CustomInput";
 import { SectionWrapper } from "./SectionWrapper";
@@ -34,14 +57,24 @@ const emptyPlanForm = {
 };
 
 const analisisIcons: Record<string, React.ReactNode> = {
-  documentos: <FileText className="size-3.5" />,
-  procesos: <GitBranch className="size-3.5" />,
-  personas: <Users className="size-3.5" />,
-  instalaciones: <Building2 className="size-3.5" />,
-  "tecnologia-maquinaria": <Wrench className="size-3.5" />,
-  "riesgos-organizacionales": <TriangleAlert className="size-3.5" />,
-  "peligros-riesgos": <ShieldAlert className="size-3.5" />,
-  "aspectos-impactos-ambientales": <Leaf className="size-3.5" />,
+  documentos: <FileText className="size-4 text-rose-600" />,
+  procesos: <GitBranch className="size-4 text-blue-600" />,
+  personas: <Users className="size-4 text-sky-700" />,
+  instalaciones: <Building2 className="size-4 text-orange-600" />,
+  "tecnologia-maquinaria": <Wrench className="size-4 text-violet-600" />,
+  "riesgos-organizacionales": <TriangleAlert className="size-4 text-amber-600" />,
+  "peligros-riesgos": <ShieldAlert className="size-4 text-red-600" />,
+  "aspectos-impactos-ambientales": <Leaf className="size-4 text-emerald-600" />,
+};
+
+const solicitudIcons: Record<string, React.ReactNode> = {
+  proceso: <Hash className="size-4 text-blue-600" />,
+};
+
+const planIcons: Record<string, React.ReactNode> = {
+  actividades: <ListChecks className="size-4 text-fuchsia-600" />,
+  responsable: <UserCheck className="size-4 text-sky-700" />,
+  fecha: <CalendarDays className="size-4 text-rose-600" />,
 };
 
 function splitOtherValue(value?: string) {
@@ -87,6 +120,17 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
       .slice(0, 8);
   }, [responsableSearchValue, usuariosResponsables]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    const timeout = window.setTimeout(() => setError(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [error]);
+
+  const showMissingField = (fieldName: string) => {
+    setError(`Falta diligenciar el campo: ${fieldName}.`);
+  };
+
   const updateSolicitudValue = (fieldId: string, value: string) => {
     setSolicitudValues((current) => ({ ...current, [fieldId]: value }));
   };
@@ -96,9 +140,12 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
   };
 
   const agregarTipoCambio = () => {
-    if (!tipoCambioSeleccionado) return;
+    if (!tipoCambioSeleccionado) {
+      showMissingField("Tipo de cambio");
+      return;
+    }
     if (isTipoCambioOtros && !cualTipoCambio.trim()) {
-      setError("Especifique cuál es el otro tipo de cambio.");
+      showMissingField("Especifique cuál es el tipo de cambio");
       return;
     }
 
@@ -149,9 +196,20 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
   };
 
   const agregarPlan = () => {
-    if (!planForm.actividades && !planForm.responsable && !planForm.fecha) return;
-    if (!planForm.actividades.trim() || !planForm.responsableId || !planForm.fecha) {
-      setError("Completa la actividad, selecciona un responsable y define la fecha antes de añadirla.");
+    if (!planForm.actividades.trim()) {
+      showMissingField("Actividades del plan");
+      return;
+    }
+    if (!planForm.responsableId) {
+      if (planForm.responsable.trim()) {
+        setError("Selecciona un usuario responsable de la lista para asociarlo al plan.");
+        return;
+      }
+      showMissingField("Responsable del plan");
+      return;
+    }
+    if (!planForm.fecha) {
+      showMissingField("Fecha del plan");
       return;
     }
 
@@ -194,22 +252,41 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const intent = submitter?.value === "send-quality" ? "send-quality" : "draft";
 
-    if (intent === "send-quality" && !liderProcesoId && !isCurrentUserLeader) {
-      setError("Selecciona el líder del proceso antes de enviar el registro a Calidad.");
+    if (intent === "send-quality" && !solicitudValues.proceso?.trim()) {
+      showMissingField("Proceso");
       return;
     }
-    if (intent === "send-quality" && planRows.length === 0) {
-      setError("Agrega al menos una actividad completa al plan de implementación.");
+    if (intent === "send-quality" && !liderProcesoId && !isCurrentUserLeader) {
+      showMissingField("Líder del proceso");
+      return;
+    }
+
+    if (intent === "send-quality" && !tipoCambioSeleccionado && tiposCambio.length === 0) {
+      showMissingField("Tipo de cambio");
       return;
     }
 
     if (isTipoCambioOtros && !cualTipoCambio.trim()) {
-      setError("Especifique cuál es el otro tipo de cambio.");
+      showMissingField("Especifique cuál es el tipo de cambio");
       return;
     }
 
     const pendingTipoCambio = getPendingTipoCambio();
     const finalTiposCambio = pendingTipoCambio && !tiposCambio.includes(pendingTipoCambio) ? [...tiposCambio, pendingTipoCambio] : tiposCambio;
+
+    if (intent === "send-quality") {
+      const missingAnalisisField = analisisFields.find((field) => !(analisisValues[field.id] ?? "").trim());
+      if (missingAnalisisField) {
+        showMissingField(missingAnalisisField.label);
+        return;
+      }
+
+      if (planRows.length === 0) {
+        showMissingField("Plan para implementación del cambio");
+        return;
+      }
+    }
+
     const analisis = Object.fromEntries(
       analisisFields.map((field) => {
         return [field.id, (analisisValues[field.id] ?? "").trim()];
@@ -231,7 +308,31 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
 
   return (
     <form id={formId} onSubmit={submitSolicitud} className="space-y-4 text-[#08142f]">
-        {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
+        {error ? (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="fixed bottom-5 right-5 z-[95] w-[min(92vw,26rem)] rounded-lg border border-amber-200 bg-white p-4 text-[#08142f] shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-700">
+                <TriangleAlert className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-amber-700">Campo pendiente</p>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-800">{error}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setError("")}
+                className="grid size-7 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Cerrar mensaje de validación"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <SectionWrapper title="1. SOLICITUD DEL CAMBIO" icon={<FilePenLine className="size-5" />}>
           <div className="space-y-4">
@@ -244,6 +345,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                   type={field.type}
                   placeholder={field.placeholder}
                   options={field.id === "proceso" ? procesoOptions : undefined}
+                  icon={solicitudIcons[field.id]}
                   value={solicitudValues[field.id] ?? ""}
                   onChange={(value) => updateSolicitudValue(field.id, value)}
                 />
@@ -254,6 +356,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                 label={isCurrentUserLeader ? "ASIGNAR A OTRO LÍDER RESPONSABLE" : "LÍDER DEL PROCESO"}
                 type="select"
                 placeholder={isCurrentUserLeader ? "Opcional: seleccione otro líder" : "Seleccione el líder responsable"}
+                icon={<UserRound className="size-4 text-sky-700" />}
                 options={leaderOptions.map((usuario) => ({
                   value: usuario.id,
                   label: `${usuario.nombre}${usuario.proceso ? ` - ${usuario.proceso}` : ""}`,
@@ -274,6 +377,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                 type={tipoCambioField.type}
                 placeholder={tipoCambioField.placeholder}
                 options={tipoCambioOptions}
+                icon={<Tag className="size-4 text-fuchsia-600" />}
                 value={tipoCambioSeleccionado}
                 onChange={(value) => {
                   setTipoCambioSeleccionado(value);
@@ -290,6 +394,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                 label="Especifique cuál"
                 type="text"
                 placeholder="Describa el tipo de cambio"
+                icon={<FileText className="size-4 text-rose-600" />}
                 value={cualTipoCambio}
                 onChange={setCualTipoCambio}
               />
@@ -360,19 +465,20 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
           </div>
         </SectionWrapper>
 
-        <SectionWrapper title="3. PLAN PARA IMPLEMENTACIÓN DEL CAMBIO">
+        <SectionWrapper title="3. PLAN PARA IMPLEMENTACIÓN DEL CAMBIO" icon={<ClipboardList className="size-5" />}>
           <div className="space-y-5">
-            <div className="flex flex-col items-center justify-center gap-3 text-center lg:flex-row">
-              <p className="text-sm font-bold italic text-[#08142f]">
-                Escriba las actividades necesarias para la implementación del cambio propuesto, incluidas las actividades para control de riesgos SST y de impactos ambientales, luego oprima el botón
+            <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
+              <p className="text-sm font-semibold leading-6 text-slate-600">
+                Registre las actividades necesarias para implementar el cambio, incluyendo controles de riesgos SST e impactos ambientales.
               </p>
             </div>
 
-            <div className="grid items-end gap-4 lg:grid-cols-[minmax(18rem,1.2fr)_minmax(16rem,0.8fr)_minmax(12rem,0.45fr)]">
+            <div className="grid items-end gap-x-4 gap-y-4 lg:grid-cols-[minmax(18rem,1.15fr)_minmax(16rem,0.9fr)_minmax(12rem,0.45fr)]">
               {planFields.map((field) => (
                 field.id === "responsable" ? (
                   <div key={field.id} className="relative">
-                    <label htmlFor={field.id} className="flex items-center gap-2 text-[11px] font-black text-[#08142f]">
+                    <label htmlFor={field.id} className="flex items-center gap-2 text-xs font-bold leading-4 text-[#020a1f]">
+                      <span className="inline-flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">{planIcons[field.id]}</span>
                       {field.label}
                     </label>
                     <div className="relative mt-2">
@@ -388,7 +494,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                         onBlur={() => window.setTimeout(() => setResponsableSearchOpen(false), 150)}
                         placeholder="Escriba para buscar usuario responsable"
                         autoComplete="off"
-                        className="block h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 pl-10 pr-10 text-sm font-semibold text-[#08142f] outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                        className="block h-10 w-full rounded-md border border-[#b8c2cf] bg-white px-3 py-2 pl-10 pr-10 text-sm font-medium text-[#18314f] outline-none transition placeholder:text-[#8a9ab5] focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100"
                       />
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-slate-600" />
                     </div>
@@ -430,6 +536,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                   label={field.label}
                   type={field.type}
                   placeholder={field.placeholder}
+                  icon={planIcons[field.id]}
                   value={planForm[field.id]}
                   onChange={(value) => actualizarPlanForm(field.id, value)}
                 />

@@ -17,7 +17,7 @@ const tabs = [
 
 export function ReporteAccionesTabs({ activeTab, onChange }: ReporteAccionesTabsProps) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-100 p-1 shadow-sm">
+    <div className="rounded-md border border-slate-200 bg-[#eef3f8] p-1 shadow-sm">
       <div className="grid gap-1 sm:grid-cols-3">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -28,8 +28,8 @@ export function ReporteAccionesTabs({ activeTab, onChange }: ReporteAccionesTabs
               key={tab.id}
               type="button"
               onClick={() => onChange(tab.id)}
-              className={`inline-flex h-12 items-center justify-center gap-2 rounded-md px-4 text-sm font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
-                isActive ? "bg-white text-emerald-900 shadow-sm" : "bg-transparent text-slate-600 hover:bg-white/60 hover:text-slate-950"
+              className={`inline-flex h-9 items-center justify-center gap-2 rounded-sm px-4 text-xs font-black uppercase transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
+                isActive ? "bg-white text-[#071127] shadow-sm" : "bg-transparent text-[#50617d] hover:bg-white/70 hover:text-[#071127]"
               }`}
             >
               <Icon className="size-4" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Save } from "lucide-react";
+import { CalendarDays, ClipboardList, FileText, Hash, ListChecks, Save, Search, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AccionForm, emptyAccionForm, type AccionFormState } from "./AccionForm";
 import { AccionesTable } from "./AccionesTable";
@@ -22,12 +22,19 @@ function createEmptyReporte(codigo: string, version: string): ReporteAccionesDat
     tipoHallazgo: "",
     fuente: "Seleccione una opción",
     descripcionHallazgo: "",
+    usuarioCreador: "",
     causas: "",
+    descripcionProblema: "",
+    metodologiaAnalisis: "",
+    causasIdentificadas: "",
+    causaRaiz: "",
+    observacionesAnalisis: "",
     consecuencias: "",
     riesgosOportunidades: "",
     estado: "Borrador",
     aprobadorActual: "Líder de proceso",
     fechaSeguimientoEficacia: "",
+    responsableValidarEficacia: "",
     observacionesCalidad: "",
     acciones: [],
   };
@@ -37,7 +44,7 @@ const fasesReporte = ["Identificación del Hallazgo", "Análisis de Causa", "Imp
 
 function PhaseStepper({ activeStep }: { activeStep: number }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm sm:px-6">
+    <div className="min-w-0 rounded-lg border border-[#d8e2ee] bg-white px-5 py-4 shadow-sm sm:px-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
         {fasesReporte.map((fase, index) => {
           const isActive = index <= activeStep;
@@ -46,12 +53,12 @@ function PhaseStepper({ activeStep }: { activeStep: number }) {
             <div key={fase} className="flex min-w-0 flex-1 items-center gap-3">
               <div
                 className={`grid size-10 shrink-0 place-items-center rounded-xl text-sm font-black transition ${
-                  isActive ? "bg-emerald-800 text-white shadow-sm" : "bg-slate-100 text-slate-400"
+                  isActive ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-400"
                 }`}
               >
                 {index + 1}
               </div>
-              <p className={`truncate text-sm font-black ${isActive ? "text-emerald-900" : "text-slate-400"}`}>{fase}</p>
+              <p className={`truncate text-sm font-black ${isActive ? "text-[#071127]" : "text-slate-400"}`}>{fase}</p>
               {index < fasesReporte.length - 1 ? <div className="hidden h-px flex-1 bg-slate-200 md:block" /> : null}
             </div>
           );
@@ -99,9 +106,16 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       accionForm.tipoAccion === "Seleccione una opción" ||
       !accionForm.descripcionAccion.trim() ||
       !accionForm.fechaImplementacion ||
-      !accionForm.responsableImplementacion.trim()
+      !accionForm.responsableImplementacion.trim() ||
+      !accionForm.resultadoEsperado.trim() ||
+      !accionForm.evidenciaRequerida.trim()
     ) {
-      return "Por favor completa los campos de implementación antes de agregar la acción.";
+      if (accionForm.tipoAccion === "Seleccione una opción") return "Falta diligenciar el campo: Tipo de acción.";
+      if (!accionForm.descripcionAccion.trim()) return "Falta diligenciar el campo: Descripción de la acción.";
+      if (!accionForm.fechaImplementacion) return "Falta diligenciar el campo: Fecha prevista de implementación.";
+      if (!accionForm.responsableImplementacion.trim()) return "Falta diligenciar el campo: Responsable.";
+      if (!accionForm.resultadoEsperado.trim()) return "Falta diligenciar el campo: Resultado esperado.";
+      if (!accionForm.evidenciaRequerida.trim()) return "Falta diligenciar el campo: Evidencia requerida.";
     }
 
     return "";
@@ -127,6 +141,9 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
                   descripcionAccion: accionForm.descripcionAccion.trim(),
                   fechaImplementacion: accionForm.fechaImplementacion,
                   responsableImplementacion: accionForm.responsableImplementacion.trim(),
+                  resultadoEsperado: accionForm.resultadoEsperado.trim(),
+                  evidenciaRequerida: accionForm.evidenciaRequerida.trim(),
+                  observaciones: accionForm.observaciones.trim(),
                 }
               : accion,
           ),
@@ -140,6 +157,10 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
         descripcionAccion: accionForm.descripcionAccion.trim(),
         fechaImplementacion: accionForm.fechaImplementacion,
         responsableImplementacion: accionForm.responsableImplementacion.trim(),
+        resultadoEsperado: accionForm.resultadoEsperado.trim(),
+        evidenciaRequerida: accionForm.evidenciaRequerida.trim(),
+        observaciones: accionForm.observaciones.trim(),
+        estadoIndividual: "Pendiente",
         cierre: "Pendiente",
         fechaCierre: "",
         observacion: "",
@@ -163,6 +184,9 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       descripcionAccion: accion.descripcionAccion,
       fechaImplementacion: accion.fechaImplementacion,
       responsableImplementacion: accion.responsableImplementacion,
+      resultadoEsperado: accion.resultadoEsperado,
+      evidenciaRequerida: accion.evidenciaRequerida,
+      observaciones: accion.observaciones,
     });
     setAccionError("");
   };
@@ -186,7 +210,10 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
     }
   };
 
-  const updateCierreAccion = (accionId: string, fields: Partial<Pick<ReporteAccion, "cierre" | "fechaCierre" | "observacion" | "evidencia">>) => {
+  const updateCierreAccion = (
+    accionId: string,
+    fields: Partial<Pick<ReporteAccion, "cierre" | "fechaCierre" | "observacion" | "evidencia" | "estadoIndividual">>,
+  ) => {
     setReporte((current) => ({
       ...current,
       acciones: current.acciones.map((accion) => (accion.id === accionId ? { ...accion, ...fields } : accion)),
@@ -194,33 +221,41 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
   };
 
   const validateReporte = () => {
-    if (!reporte.proceso) return "Selecciona el proceso para continuar.";
-    if (!reporte.fechaHallazgo) return "Selecciona la fecha de hallazgo.";
-    if (!reporte.tipoHallazgo) return "Selecciona el tipo de hallazgo.";
-    if (!reporte.fuente || reporte.fuente === "Seleccione una opción") return "Selecciona una fuente relacionada con el tipo de hallazgo.";
-    if (!reporte.descripcionHallazgo.trim()) return "Completa la descripción del hallazgo para continuar.";
-    if (!reporte.causas.trim()) return "Registra las causas del hallazgo.";
-    if (!reporte.consecuencias.trim()) return "Registra las consecuencias del hallazgo.";
-    if (!reporte.riesgosOportunidades.trim()) return "Registra los riesgos y oportunidades asociados.";
-    if (reporte.acciones.length === 0) return "Debes agregar al menos una acción antes de guardar el reporte.";
+    if (!reporte.proceso) return "Falta diligenciar el campo: Proceso.";
+    if (!reporte.fechaHallazgo) return "Falta diligenciar el campo: Fecha del hallazgo.";
+    if (!reporte.tipoHallazgo) return "Falta diligenciar el campo: Tipo de hallazgo.";
+    if (!reporte.fuente || reporte.fuente === "Seleccione una opción") return "Falta diligenciar el campo: Fuente.";
+    if (!reporte.descripcionHallazgo.trim()) return "Falta diligenciar el campo: Descripción del hallazgo.";
+    if (!reporte.descripcionProblema.trim()) return "Falta diligenciar el campo: Descripción del problema.";
+    if (!reporte.metodologiaAnalisis.trim()) return "Falta diligenciar el campo: Metodología utilizada.";
+    if (!reporte.causasIdentificadas.trim()) return "Falta diligenciar el campo: Causas identificadas.";
+    if (!reporte.causaRaiz.trim()) return "Falta diligenciar el campo: Causa raíz.";
+    if (!reporte.causas.trim()) return "Falta diligenciar el campo: Causas.";
+    if (!reporte.consecuencias.trim()) return "Falta diligenciar el campo: Consecuencias.";
+    if (!reporte.riesgosOportunidades.trim()) return "Falta diligenciar el campo: Riesgos y oportunidades.";
+    if (reporte.acciones.length === 0) return "Falta agregar al menos una acción.";
 
     return "";
   };
 
   const validateIdentificacion = () => {
-    if (!reporte.proceso) return "Selecciona el proceso para continuar.";
-    if (!reporte.fechaHallazgo) return "Selecciona la fecha de hallazgo.";
-    if (!reporte.tipoHallazgo) return "Selecciona el tipo de hallazgo.";
-    if (!reporte.fuente || reporte.fuente === "Seleccione una opción") return "Selecciona una fuente relacionada con el tipo de hallazgo.";
-    if (!reporte.descripcionHallazgo.trim()) return "Completa la descripción del hallazgo para continuar.";
+    if (!reporte.proceso) return "Falta diligenciar el campo: Proceso.";
+    if (!reporte.fechaHallazgo) return "Falta diligenciar el campo: Fecha del hallazgo.";
+    if (!reporte.tipoHallazgo) return "Falta diligenciar el campo: Tipo de hallazgo.";
+    if (!reporte.fuente || reporte.fuente === "Seleccione una opción") return "Falta diligenciar el campo: Fuente.";
+    if (!reporte.descripcionHallazgo.trim()) return "Falta diligenciar el campo: Descripción del hallazgo.";
 
     return "";
   };
 
   const validateAnalisis = () => {
-    if (!reporte.causas.trim()) return "Registra las causas del hallazgo.";
-    if (!reporte.consecuencias.trim()) return "Registra las consecuencias del hallazgo.";
-    if (!reporte.riesgosOportunidades.trim()) return "Registra los riesgos y oportunidades asociados.";
+    if (!reporte.descripcionProblema.trim()) return "Falta diligenciar el campo: Descripción del problema.";
+    if (!reporte.metodologiaAnalisis.trim()) return "Falta diligenciar el campo: Metodología utilizada.";
+    if (!reporte.causasIdentificadas.trim()) return "Falta diligenciar el campo: Causas identificadas.";
+    if (!reporte.causaRaiz.trim()) return "Falta diligenciar el campo: Causa raíz.";
+    if (!reporte.causas.trim()) return "Falta diligenciar el campo: Causas.";
+    if (!reporte.consecuencias.trim()) return "Falta diligenciar el campo: Consecuencias.";
+    if (!reporte.riesgosOportunidades.trim()) return "Falta diligenciar el campo: Riesgos y oportunidades.";
 
     return "";
   };
@@ -253,6 +288,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       ...reporte,
       codigo: codigoFormato,
       version: versionFormato,
+      usuarioCreador: usuarioActual?.nombre ?? "Usuario ROCA",
       estado: "En revisión de Calidad",
       aprobadorActual: "Gestión de Calidad",
     };
@@ -294,7 +330,12 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       }
 
       if (!reporte.observacionesCalidad.trim()) {
-        setFormError("Registra en observaciones la definición del seguimiento antes de aprobar.");
+        setFormError("Falta diligenciar el campo: Observaciones de Calidad.");
+        return;
+      }
+
+      if (!reporte.responsableValidarEficacia.trim()) {
+        setFormError("Falta diligenciar el campo: Responsable de validar eficacia.");
         return;
       }
 
@@ -358,7 +399,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
           <button
             type="button"
             onClick={() => aplicarFlujo("aprobar-definir-seguimiento")}
-            className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-5 text-sm font-bold text-white transition hover:bg-emerald-900"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700"
           >
             Aprobar y definir seguimiento
           </button>
@@ -371,7 +412,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
         <button
           type="button"
           onClick={() => aplicarFlujo("reenviar-calidad")}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-5 text-sm font-bold text-white transition hover:bg-emerald-900"
+          className="inline-flex h-11 items-center justify-center rounded-md bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700"
         >
           Reenviar a Calidad
         </button>
@@ -383,7 +424,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
         <button
           type="button"
           onClick={() => aplicarFlujo("remitir-lider")}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-5 text-sm font-bold text-white transition hover:bg-emerald-900"
+          className="inline-flex h-11 items-center justify-center rounded-md bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700"
         >
           Remitir al líder
         </button>
@@ -395,7 +436,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
         <button
           type="button"
           onClick={() => aplicarFlujo("enviar-cierre-calidad")}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-5 text-sm font-bold text-white transition hover:bg-emerald-900"
+          className="inline-flex h-11 items-center justify-center rounded-md bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700"
         >
           Enviar cierre a Calidad
         </button>
@@ -407,7 +448,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
         <button
           type="button"
           onClick={() => aplicarFlujo("cerrar-formato")}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-800 px-5 text-sm font-bold text-white transition hover:bg-emerald-900"
+          className="inline-flex h-11 items-center justify-center rounded-md bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700"
         >
           Validar eficacia y cerrar formato
         </button>
@@ -418,15 +459,22 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
   };
 
   return (
-    <div className="space-y-7">
+    <div className="min-w-0 space-y-5">
       <PhaseStepper activeStep={currentStep} />
 
       {currentStep === 0 ? (
         <SectionWrapper>
-          <div className="grid gap-5 lg:grid-cols-2">
-            <DynamicSelect id="proceso" label="Proceso" value={reporte.proceso} options={["", ...procesos]} onChange={(value) => updateReporte("proceso", value)} />
+          <div className="grid min-w-0 gap-x-5 gap-y-4 lg:grid-cols-2">
+            <DynamicSelect
+              id="proceso"
+              label="Proceso"
+              icon={<Hash className="size-5 text-blue-600" />}
+              value={reporte.proceso}
+              options={["", ...procesos]}
+              onChange={(value) => updateReporte("proceso", value)}
+            />
 
-            <Field id="fechaHallazgo" label="Fecha de hallazgo">
+            <Field id="fechaHallazgo" label="Fecha de hallazgo" icon={<CalendarDays className="size-5 text-rose-600" />}>
               <input
                 id="fechaHallazgo"
                 type="date"
@@ -436,12 +484,26 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
               />
             </Field>
 
-            <DynamicSelect id="tipoHallazgo" label="Tipo de hallazgo" value={reporte.tipoHallazgo} options={tiposHallazgo} onChange={handleTipoHallazgoChange} />
+            <DynamicSelect
+              id="tipoHallazgo"
+              label="Tipo de hallazgo"
+              icon={<ClipboardList className="size-5 text-fuchsia-600" />}
+              value={reporte.tipoHallazgo}
+              options={tiposHallazgo}
+              onChange={handleTipoHallazgoChange}
+            />
 
-            <DynamicSelect id="fuente" label="Fuente" value={reporte.fuente} options={fuentes} onChange={(value) => updateReporte("fuente", value)} />
+            <DynamicSelect
+              id="fuente"
+              label="Fuente"
+              icon={<Search className="size-5 text-orange-600" />}
+              value={reporte.fuente}
+              options={fuentes}
+              onChange={(value) => updateReporte("fuente", value)}
+            />
 
             <div className="lg:col-span-2">
-              <Field id="descripcionHallazgo" label="Descripción del hallazgo">
+              <Field id="descripcionHallazgo" label="Descripción del hallazgo" icon={<FileText className="size-5 text-rose-600" />}>
                 <textarea
                   id="descripcionHallazgo"
                   value={reporte.descripcionHallazgo}
@@ -451,14 +513,65 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
                 />
               </Field>
             </div>
+
+            <Field id="usuarioCreador" label="Usuario creador" icon={<UserRound className="size-5 text-sky-700" />}>
+              <input
+                id="usuarioCreador"
+                value={usuarioActual?.nombre ?? "Usuario ROCA"}
+                readOnly
+                className={`${inputClassName} bg-slate-100 text-slate-500`}
+              />
+            </Field>
           </div>
         </SectionWrapper>
       ) : null}
 
       {currentStep === 1 ? (
         <SectionWrapper>
-          <div className="grid gap-5 lg:grid-cols-3">
-            <Field id="causas" label="Causas">
+          <div className="grid min-w-0 gap-x-5 gap-y-4 lg:grid-cols-2">
+            <div className="lg:col-span-2">
+              <Field id="descripcionProblema" label="Descripción del problema" icon={<FileText className="size-5 text-fuchsia-600" />}>
+                <textarea
+                  id="descripcionProblema"
+                  value={reporte.descripcionProblema}
+                  onChange={(event) => updateReporte("descripcionProblema", event.target.value)}
+                  placeholder="Describa el problema que origina el reporte"
+                  className={textareaClassName}
+                />
+              </Field>
+            </div>
+
+            <Field id="metodologiaAnalisis" label="Metodología utilizada" icon={<ListChecks className="size-5 text-blue-600" />}>
+              <textarea
+                id="metodologiaAnalisis"
+                value={reporte.metodologiaAnalisis}
+                onChange={(event) => updateReporte("metodologiaAnalisis", event.target.value)}
+                placeholder="Ejemplo: 5 porqués, Ishikawa, lluvia de ideas, análisis documental"
+                className={textareaClassName}
+              />
+            </Field>
+
+            <Field id="causasIdentificadas" label="Causas identificadas" icon={<Hash className="size-5 text-emerald-600" />}>
+              <textarea
+                id="causasIdentificadas"
+                value={reporte.causasIdentificadas}
+                onChange={(event) => updateReporte("causasIdentificadas", event.target.value)}
+                placeholder="Liste las causas identificadas durante el análisis"
+                className={textareaClassName}
+              />
+            </Field>
+
+            <Field id="causaRaiz" label="Causa raíz" icon={<Hash className="size-5 text-rose-600" />}>
+              <textarea
+                id="causaRaiz"
+                value={reporte.causaRaiz}
+                onChange={(event) => updateReporte("causaRaiz", event.target.value)}
+                placeholder="Causa raíz confirmada"
+                className={textareaClassName}
+              />
+            </Field>
+
+            <Field id="causas" label="Causas" icon={<Hash className="size-5 text-blue-600" />}>
               <textarea
                 id="causas"
                 value={reporte.causas}
@@ -468,7 +581,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
               />
             </Field>
 
-            <Field id="consecuencias" label="Consecuencias">
+            <Field id="consecuencias" label="Consecuencias" icon={<FileText className="size-5 text-orange-600" />}>
               <textarea
                 id="consecuencias"
                 value={reporte.consecuencias}
@@ -478,7 +591,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
               />
             </Field>
 
-            <Field id="riesgosOportunidades" label="Riesgos y oportunidades">
+            <Field id="riesgosOportunidades" label="Riesgos y oportunidades" icon={<ListChecks className="size-5 text-emerald-600" />}>
               <textarea
                 id="riesgosOportunidades"
                 value={reporte.riesgosOportunidades}
@@ -487,6 +600,18 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
                 className={textareaClassName}
               />
             </Field>
+
+            <div className="lg:col-span-2">
+              <Field id="observacionesAnalisis" label="Observaciones" icon={<FileText className="size-5 text-rose-600" />}>
+                <textarea
+                  id="observacionesAnalisis"
+                  value={reporte.observacionesAnalisis}
+                  onChange={(event) => updateReporte("observacionesAnalisis", event.target.value)}
+                  placeholder="Observaciones adicionales del análisis de causa"
+                  className={textareaClassName}
+                />
+              </Field>
+            </div>
           </div>
         </SectionWrapper>
       ) : null}
@@ -510,14 +635,14 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Seguimiento de Calidad</p>
+                  <p className="text-xs font-black uppercase tracking-wide text-blue-700">Seguimiento de Calidad</p>
                   <h2 className="mt-1 text-lg font-black text-slate-950">{reporte.estado}</h2>
                   <p className="mt-1 text-sm leading-6 text-slate-600">Responsable actual: {reporte.aprobadorActual}</p>
                 </div>
 
                 <div className="w-full space-y-4 lg:max-w-2xl">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field id="fechaSeguimientoEficacia" label="Fecha seguimiento eficacia">
+                    <Field id="fechaSeguimientoEficacia" label="Fecha seguimiento eficacia" icon={<CalendarDays className="size-5 text-rose-600" />}>
                       <input
                         id="fechaSeguimientoEficacia"
                         type="date"
@@ -527,13 +652,23 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
                       />
                     </Field>
 
-                    <Field id="observacionesCalidad" label="Observaciones de Calidad">
+                    <Field id="observacionesCalidad" label="Observaciones de Calidad" icon={<FileText className="size-5 text-fuchsia-600" />}>
                       <textarea
                         id="observacionesCalidad"
                         value={reporte.observacionesCalidad}
                         onChange={(event) => updateReporte("observacionesCalidad", event.target.value)}
                         placeholder="Observaciones, seguimiento o motivo de devolución"
-                        className="min-h-12 w-full resize-y rounded-md border border-slate-300 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                        className="min-h-12 w-full resize-y rounded-md border border-[#cbd6e4] bg-white px-3 py-3 text-sm font-semibold text-[#071127] outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                      />
+                    </Field>
+
+                    <Field id="responsableValidarEficacia" label="Responsable de validar eficacia" icon={<UserRound className="size-5 text-sky-700" />}>
+                      <input
+                        id="responsableValidarEficacia"
+                        value={reporte.responsableValidarEficacia}
+                        onChange={(event) => updateReporte("responsableValidarEficacia", event.target.value)}
+                        placeholder="Nombre del responsable"
+                        className={inputClassName}
                       />
                     </Field>
                   </div>
@@ -550,12 +685,12 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-900 shadow-sm">{formError}</div>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         {currentStep > 0 ? (
           <button
             type="button"
             onClick={goBackStep}
-            className="inline-flex h-12 items-center justify-center rounded-md border border-slate-300 bg-white px-7 text-sm font-black text-slate-700 shadow-sm transition hover:border-emerald-700 hover:text-emerald-800"
+            className="inline-flex h-11 items-center justify-center rounded-md border border-[#cbd6e4] bg-white px-7 text-sm font-black text-[#34435e] shadow-sm transition hover:border-blue-500 hover:text-blue-700"
           >
             Atrás
           </button>
@@ -567,7 +702,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
           <button
             type="button"
             onClick={goNextStep}
-            className="inline-flex h-12 items-center justify-center rounded-md bg-emerald-800 px-8 text-sm font-black text-white shadow-sm transition hover:bg-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-blue-600 px-8 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             Siguiente
           </button>
@@ -575,7 +710,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
           <button
             type="button"
             onClick={saveReporte}
-            className="inline-flex h-12 items-center justify-center gap-3 rounded-md bg-emerald-800 px-8 text-sm font-black text-white shadow-sm transition hover:bg-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            className="inline-flex h-11 items-center justify-center gap-3 rounded-md bg-blue-600 px-8 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             <Save className="size-5" />
             Guardar Reporte

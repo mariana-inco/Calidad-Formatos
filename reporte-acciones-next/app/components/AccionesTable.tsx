@@ -9,7 +9,10 @@ type AccionesTableProps = {
   canCloseActions?: boolean;
   onEdit: (accion: ReporteAccion) => void;
   onDelete: (accionId: string) => void;
-  onUpdateCierre?: (accionId: string, fields: Partial<Pick<ReporteAccion, "cierre" | "fechaCierre" | "observacion" | "evidencia">>) => void;
+  onUpdateCierre?: (
+    accionId: string,
+    fields: Partial<Pick<ReporteAccion, "cierre" | "fechaCierre" | "observacion" | "evidencia" | "estadoIndividual">>,
+  ) => void;
 };
 
 function StatusBadge({ children }: { children: React.ReactNode }) {
@@ -32,7 +35,7 @@ function ActionButton({ label, children, onClick }: { label: string; children: R
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="inline-grid size-8 place-items-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800"
+      className="inline-grid size-8 place-items-center rounded-md border border-[#cbd6e4] bg-white text-[#34435e] transition hover:border-blue-500 hover:text-blue-700"
     >
       {children}
     </button>
@@ -49,25 +52,27 @@ export function AccionesTable({ acciones, canCloseActions = false, onEdit, onDel
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-lg border border-[#d8e2ee] bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1320px] border-collapse text-left text-sm">
           <thead>
-            <tr className="bg-emerald-950 text-center text-xs font-black uppercase tracking-wide text-white">
-              <th colSpan={5} className="border-r border-emerald-800 px-4 py-3">
+            <tr className="bg-[#071127] text-center text-xs font-black uppercase tracking-wide text-white">
+              <th colSpan={7} className="border-r border-white/10 px-4 py-3">
                 Implementar
               </th>
-              <th colSpan={4} className="border-r border-emerald-800 px-4 py-3">
+              <th colSpan={4} className="border-r border-white/10 px-4 py-3">
                 Controlar
               </th>
               <th className="px-4 py-3">Acción</th>
             </tr>
-            <tr className="bg-emerald-900 text-xs font-black uppercase tracking-wide text-white">
+            <tr className="bg-[#111935] text-xs font-black uppercase tracking-wide text-white">
               <th className="px-4 py-3">N°</th>
               <th className="px-4 py-3">Aspectos de control</th>
               <th className="px-4 py-3">Descripción acción</th>
               <th className="px-4 py-3">Fecha implementación</th>
               <th className="px-4 py-3">Responsable implementación</th>
+              <th className="px-4 py-3">Resultado esperado</th>
+              <th className="px-4 py-3">Evidencia requerida</th>
               <th className="px-4 py-3">Cierre</th>
               <th className="px-4 py-3">Fecha cierre</th>
               <th className="px-4 py-3">Observación</th>
@@ -77,12 +82,14 @@ export function AccionesTable({ acciones, canCloseActions = false, onEdit, onDel
           </thead>
           <tbody className="divide-y divide-slate-100">
             {acciones.map((accion) => (
-              <tr key={accion.id} className="align-top text-slate-800 transition hover:bg-blue-50/40">
-                <td className="px-4 py-4 font-black text-emerald-900">{accion.numero}</td>
+              <tr key={accion.id} className="align-top text-[#34435e] transition hover:bg-blue-50/40">
+                <td className="px-4 py-4 font-black text-blue-700">{accion.numero}</td>
                 <td className="px-4 py-4 font-bold">{accion.tipoAccion}</td>
                 <td className="max-w-sm px-4 py-4 leading-6">{accion.descripcionAccion}</td>
                 <td className="px-4 py-4">{accion.fechaImplementacion}</td>
                 <td className="px-4 py-4 font-semibold">{accion.responsableImplementacion}</td>
+                <td className="max-w-xs px-4 py-4 leading-6">{accion.resultadoEsperado}</td>
+                <td className="max-w-xs px-4 py-4 leading-6">{accion.evidenciaRequerida}</td>
                 <td className="px-4 py-4">
                   {canCloseActions ? (
                     <DynamicSelect
@@ -90,7 +97,12 @@ export function AccionesTable({ acciones, canCloseActions = false, onEdit, onDel
                       value={accion.cierre}
                       options={["Pendiente", "Cerrado"]}
                       compact
-                      onChange={(cierre) => onUpdateCierre?.(accion.id, { cierre: cierre as ReporteAccion["cierre"] })}
+                      onChange={(cierre) =>
+                        onUpdateCierre?.(accion.id, {
+                          cierre: cierre as ReporteAccion["cierre"],
+                          estadoIndividual: cierre === "Cerrado" ? "Implementada" : "En implementación",
+                        })
+                      }
                     />
                   ) : (
                     <StatusBadge>{accion.cierre}</StatusBadge>
@@ -102,7 +114,7 @@ export function AccionesTable({ acciones, canCloseActions = false, onEdit, onDel
                       type="date"
                       value={accion.fechaCierre}
                       onChange={(event) => onUpdateCierre?.(accion.id, { fechaCierre: event.target.value })}
-                      className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold outline-none focus:border-emerald-700"
+                      className="h-9 rounded-md border border-[#cbd6e4] bg-white px-2 text-xs font-semibold outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                   ) : (
                     accion.fechaCierre || "-"
@@ -114,7 +126,7 @@ export function AccionesTable({ acciones, canCloseActions = false, onEdit, onDel
                       value={accion.observacion}
                       onChange={(event) => onUpdateCierre?.(accion.id, { observacion: event.target.value })}
                       placeholder="Observación"
-                      className="h-9 w-44 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold outline-none focus:border-emerald-700"
+                      className="h-9 w-44 rounded-md border border-[#cbd6e4] bg-white px-2 text-xs font-semibold outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                   ) : (
                     accion.observacion || "-"
@@ -126,7 +138,7 @@ export function AccionesTable({ acciones, canCloseActions = false, onEdit, onDel
                       value={accion.evidencia ?? ""}
                       onChange={(event) => onUpdateCierre?.(accion.id, { evidencia: event.target.value || null })}
                       placeholder="Ruta o nombre evidencia"
-                      className="h-9 w-44 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold outline-none focus:border-emerald-700"
+                      className="h-9 w-44 rounded-md border border-[#cbd6e4] bg-white px-2 text-xs font-semibold outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                   ) : (
                     <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">

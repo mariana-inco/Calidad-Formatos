@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown, Plus, Send, X } from "lucide-react";
+import { CheckCircle2, ClipboardList, Clock3, FileDown, FileText, Layers3, Plus, RotateCw, Send, X, XCircle } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { CalidadReporteAccionesView } from "./CalidadReporteAccionesView";
@@ -162,7 +162,7 @@ function DetalleReporteModal({
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-wide text-emerald-700">{registro.consecutivo}</p>
+              <p className="text-xs font-black uppercase tracking-wide text-blue-700">{registro.consecutivo}</p>
               <h2 className="mt-1 text-xl font-black text-slate-950">Detalle del Reporte de Acciones</h2>
               <p className="mt-1 text-sm text-slate-600">Responsable actual: {registro.responsableActual}</p>
             </div>
@@ -202,6 +202,14 @@ function DetalleReporteModal({
               <span className="block text-xs font-black uppercase text-slate-500">Fuente</span>
               <span className="font-semibold text-slate-950">{registro.detalle.fuente}</span>
             </p>
+            <p>
+              <span className="block text-xs font-black uppercase text-slate-500">Usuario creador</span>
+              <span className="font-semibold text-slate-950">{registro.detalle.usuarioCreador || registro.liderProceso}</span>
+            </p>
+            <p>
+              <span className="block text-xs font-black uppercase text-slate-500">Responsable eficacia</span>
+              <span className="font-semibold text-slate-950">{registro.detalle.responsableValidarEficacia || "Pendiente por Calidad"}</span>
+            </p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
@@ -216,6 +224,14 @@ function DetalleReporteModal({
               {canCorrect ? <textarea value={registro.detalle.causas} onChange={(event) => updateDetail({ causas: event.target.value })} className="mt-2 min-h-24 w-full rounded-md border border-slate-300 p-3 text-sm" /> : <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.causas}</p>}
             </div>
             <div className="rounded-md border border-slate-100 bg-white p-4">
+              <p className="text-xs font-black uppercase text-slate-500">Causa raíz</p>
+              {canCorrect ? <textarea value={registro.detalle.causaRaiz} onChange={(event) => updateDetail({ causaRaiz: event.target.value })} className="mt-2 min-h-24 w-full rounded-md border border-slate-300 p-3 text-sm" /> : <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.causaRaiz}</p>}
+            </div>
+            <div className="rounded-md border border-slate-100 bg-white p-4">
+              <p className="text-xs font-black uppercase text-slate-500">Metodología</p>
+              {canCorrect ? <textarea value={registro.detalle.metodologiaAnalisis} onChange={(event) => updateDetail({ metodologiaAnalisis: event.target.value })} className="mt-2 min-h-24 w-full rounded-md border border-slate-300 p-3 text-sm" /> : <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.metodologiaAnalisis}</p>}
+            </div>
+            <div className="rounded-md border border-slate-100 bg-white p-4">
               <p className="text-xs font-black uppercase text-slate-500">Consecuencias</p>
               <p className="mt-2 text-sm leading-6 text-slate-700">{registro.detalle.consecuencias}</p>
             </div>
@@ -226,14 +242,16 @@ function DetalleReporteModal({
           </div>
 
           <div className="overflow-hidden rounded-lg border border-slate-200">
-            <div className="bg-emerald-950 px-4 py-3 text-sm font-black uppercase text-white">Acciones registradas</div>
+            <div className="bg-[#071127] px-4 py-3 text-sm font-black uppercase text-white">Acciones registradas</div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] border-collapse text-left text-sm">
-                <thead className="bg-emerald-900 text-xs font-black uppercase text-white">
+              <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+                <thead className="bg-[#111935] text-xs font-black uppercase text-white">
                   <tr>
                     <th className="px-4 py-3">N°</th>
                     <th className="px-4 py-3">Tipo</th>
                     <th className="px-4 py-3">Descripción</th>
+                    <th className="px-4 py-3">Resultado esperado</th>
+                    <th className="px-4 py-3">Evidencia requerida</th>
                     <th className="px-4 py-3">Fecha implementación</th>
                     <th className="px-4 py-3">Responsable</th>
                     <th className="px-4 py-3">Cierre y evidencia</th>
@@ -242,15 +260,26 @@ function DetalleReporteModal({
                 <tbody className="divide-y divide-slate-100">
                   {registro.detalle.acciones.map((accion) => (
                     <tr key={accion.id}>
-                      <td className="px-4 py-3 font-black text-emerald-900">{accion.numero}</td>
+                      <td className="px-4 py-3 font-black text-blue-700">{accion.numero}</td>
                       <td className="px-4 py-3 font-semibold">{accion.tipoAccion}</td>
                       <td className="px-4 py-3">{accion.descripcionAccion}</td>
+                      <td className="px-4 py-3">{accion.resultadoEsperado}</td>
+                      <td className="px-4 py-3">{accion.evidenciaRequerida}</td>
                       <td className="px-4 py-3">{accion.fechaImplementacion}</td>
                       <td className="px-4 py-3 font-semibold">{accion.responsableImplementacion}</td>
                       <td className="min-w-72 px-4 py-3">
                         {canImplement ? (
                           <div className="space-y-2">
-                            <select value={accion.cierre} onChange={(event) => updateAction(accion.id, { cierre: event.target.value as "Pendiente" | "Cerrado" })} className="h-10 w-full rounded-md border border-slate-300 px-2">
+                            <select
+                              value={accion.cierre}
+                              onChange={(event) =>
+                                updateAction(accion.id, {
+                                  cierre: event.target.value as "Pendiente" | "Cerrado",
+                                  estadoIndividual: event.target.value === "Cerrado" ? "Implementada" : "En implementación",
+                                })
+                              }
+                              className="h-10 w-full rounded-md border border-slate-300 px-2"
+                            >
                               <option>Pendiente</option><option>Cerrado</option>
                             </select>
                             <input type="date" value={accion.fechaCierre} onChange={(event) => updateAction(accion.id, { fechaCierre: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 px-2" />
@@ -272,7 +301,7 @@ function DetalleReporteModal({
 
           {canImplement ? (
             <div className="flex justify-end">
-              <button type="button" onClick={requestEffectivenessReview} className="inline-flex h-11 items-center gap-2 rounded-md bg-emerald-800 px-5 font-bold text-white">
+              <button type="button" onClick={requestEffectivenessReview} className="inline-flex h-11 items-center gap-2 rounded-md bg-blue-600 px-5 font-bold text-white transition hover:bg-blue-700">
                 <Send className="size-4" /> Solicitar validación de eficacia
               </button>
             </div>
@@ -280,7 +309,7 @@ function DetalleReporteModal({
 
           {canCorrect ? (
             <div className="flex justify-end">
-              <button type="button" onClick={resendToQuality} className="inline-flex h-11 items-center gap-2 rounded-md bg-emerald-800 px-5 font-bold text-white">
+              <button type="button" onClick={resendToQuality} className="inline-flex h-11 items-center gap-2 rounded-md bg-blue-600 px-5 font-bold text-white transition hover:bg-blue-700">
                 <Send className="size-4" /> Reenviar corrección a Calidad
               </button>
             </div>
@@ -333,20 +362,25 @@ function CrearReporteModal({
   onSave: (reporte: ReporteAccionesData) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
-      <section className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
-        <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-7">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-6">
+      <section
+        className="flex max-h-[92vh] min-w-0 flex-col overflow-hidden rounded-lg border border-[#dfe7f2] bg-white shadow-2xl"
+        style={{ width: "72vw", minWidth: "960px", maxWidth: "calc(100vw - 48px)" }}
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-[#dfe7f2] bg-white px-7 py-5 sm:px-7">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">{codigoFormato}</p>
-            <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">Crear Reporte de Acciones</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+            <h2 className="flex items-center gap-3 text-2xl font-black leading-8 text-[#34435e]">
+              <ClipboardList className="size-7 text-[#536784]" />
+              Nuevo Reporte de Acciones
+            </h2>
+            <p className="mt-6 max-w-3xl text-base leading-6 text-[#536784]">
               Diligencia la identificación del hallazgo, registra el análisis y agrega las acciones de implementación y control.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-grid size-10 shrink-0 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            className="inline-grid size-10 shrink-0 place-items-center rounded-md bg-white text-[#536784] transition hover:bg-slate-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             aria-label="Cerrar creación"
             title="Cerrar"
           >
@@ -354,8 +388,10 @@ function CrearReporteModal({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-7">
-          <ReporteAccionesForm codigoFormato={codigoFormato} versionFormato={versionFormato} usuarioActual={usuarioActual} onSave={onSave} />
+        <div className="min-w-0 flex-1 overflow-y-auto bg-[#f3f8ff] px-4 py-5 sm:px-7 sm:py-8">
+          <div className="mx-auto min-w-0" style={{ width: "calc(100% - 56px)", maxWidth: "1228px" }}>
+            <ReporteAccionesForm codigoFormato={codigoFormato} versionFormato={versionFormato} usuarioActual={usuarioActual} onSave={onSave} />
+          </div>
         </div>
       </section>
     </div>
@@ -374,6 +410,16 @@ export function ReporteAccionesPage() {
   const formatoActivo = formatosPorEmpresa[empresaActiva];
   const usuarioActual = useMemo(() => usuarios.find((usuario) => usuario.id === usuarioActualId && usuario.activo), [usuarioActualId, usuarios]);
   const registrosOrdenados = useMemo(() => sortRegistrosByRecent(registros, formatoActivo.consecutivoPrefix), [formatoActivo.consecutivoPrefix, registros]);
+  const resumen = useMemo(
+    () => ({
+      total: registrosOrdenados.length,
+      cerrados: registrosOrdenados.filter((registro) => registro.estado === "Cerrado").length,
+      enImplementacion: registrosOrdenados.filter((registro) => registro.estado === "En implementación" || registro.estado === "Pendiente de cierre por líder").length,
+      pendientes: registrosOrdenados.filter((registro) => registro.estado === "En revisión de Calidad" || registro.estado === "En validación de eficacia").length,
+      devueltos: registrosOrdenados.filter((registro) => registro.estado === "Devuelto para corrección" || registro.estado === "No eficaz / Requiere nueva acción").length,
+    }),
+    [registrosOrdenados],
+  );
 
   useEffect(() => {
     try {
@@ -447,16 +493,23 @@ export function ReporteAccionesPage() {
           "Fecha del Hallazgo": detalle.fechaHallazgo,
           "Fuente": detalle.fuente,
           "Descripción": detalle.descripcionHallazgo,
+          "Usuario Creador": detalle.usuarioCreador,
         },
         "Análisis": {
+          "Descripción del Problema": detalle.descripcionProblema,
+          "Metodología": detalle.metodologiaAnalisis,
+          "Causas Identificadas": detalle.causasIdentificadas,
+          "Causa Raíz": detalle.causaRaiz,
           "Causas": detalle.causas,
           "Consecuencias": detalle.consecuencias,
           "Riesgos y Oportunidades": detalle.riesgosOportunidades,
+          "Observaciones": detalle.observacionesAnalisis,
         },
         "Flujo de Aprobación": {
           "Estado": registro.estado,
           "Responsable Actual": registro.responsableActual,
           "Fecha Seguimiento Eficacia": detalle.fechaSeguimientoEficacia,
+          "Responsable Validar Eficacia": detalle.responsableValidarEficacia,
           "Observaciones Calidad": detalle.observacionesCalidad,
         },
         "Acciones Registradas": detalle.acciones.map((accion) => ({
@@ -465,6 +518,10 @@ export function ReporteAccionesPage() {
           "Descripción": accion.descripcionAccion,
           "Fecha Implementación": accion.fechaImplementacion,
           "Responsable": accion.responsableImplementacion,
+          "Resultado Esperado": accion.resultadoEsperado,
+          "Evidencia Requerida": accion.evidenciaRequerida,
+          "Observaciones": accion.observaciones,
+          "Estado Individual": accion.estadoIndividual,
           "Cierre": accion.cierre,
           "Fecha Cierre": accion.fechaCierre,
           "Observación": accion.observacion,
@@ -489,36 +546,69 @@ export function ReporteAccionesPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-950 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-7">
+    <main className="min-h-screen bg-[#eef3f8] px-4 py-4 text-[#071127] sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-[1360px] space-y-5">
         <ReporteAccionesTabs activeTab={activeTab} onChange={setActiveTab} />
 
         {activeTab === "historial" ? (
           <>
-            <header className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h1 className="text-2xl font-black uppercase text-slate-950 sm:text-3xl">Historial de Reportes de Acciones</h1>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black uppercase text-emerald-800">
-                      Código: {formatoActivo.codigo}
-                    </span>
-                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-black uppercase text-slate-700">
-                      Versión: {formatoActivo.version}
-                    </span>
+            <header className="overflow-hidden rounded-lg bg-[#111935] text-white shadow-lg shadow-slate-400/30 ring-1 ring-indigo-200">
+              <div className="flex flex-col gap-5 bg-[radial-gradient(circle_at_82%_0%,rgba(61,72,140,0.62),transparent_34%)] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+                <div className="flex items-center gap-4">
+                  <div className="grid size-12 shrink-0 place-items-center rounded-md border border-white/15 bg-white/10 text-white shadow-inner">
+                    <FileText className="size-6" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-black text-white sm:text-2xl">Reporte de Acciones SIG-F005</h1>
+                    <p className="mt-1 text-xs font-medium leading-5 text-slate-200">
+                      Revisión, implementación y validación de eficacia de acciones correctivas y de mejora.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase text-slate-100">
+                        Código: {formatoActivo.codigo}
+                      </span>
+                      <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase text-slate-100">
+                        Versión: {formatoActivo.version}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:w-fit"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:w-fit"
                 >
-                  <Plus className="size-5" />
+                  <Plus className="size-4" />
                   Crear Reporte de Acciones
                 </button>
               </div>
             </header>
+
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                { label: "Total", value: resumen.total, icon: Layers3, className: "from-white to-slate-100 text-[#08142f]", iconClassName: "bg-slate-100 text-slate-600" },
+                { label: "Cerradas", value: resumen.cerrados, icon: CheckCircle2, className: "from-emerald-50 to-white text-emerald-700", iconClassName: "bg-emerald-100 text-emerald-700" },
+                { label: "En implementación", value: resumen.enImplementacion, icon: RotateCw, className: "from-violet-50 to-white text-violet-700", iconClassName: "bg-violet-100 text-violet-700" },
+                { label: "Pendientes", value: resumen.pendientes, icon: Clock3, className: "from-amber-50 to-white text-amber-700", iconClassName: "bg-amber-100 text-amber-700" },
+                { label: "Devueltas", value: resumen.devueltos, icon: XCircle, className: "from-red-50 to-white text-red-700", iconClassName: "bg-red-100 text-red-700" },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <article key={item.label} className={`rounded-xl border border-slate-200 bg-gradient-to-br ${item.className} p-4 shadow-sm`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{item.label}</p>
+                        <p className="mt-1 text-2xl font-black">{item.value}</p>
+                      </div>
+                      <span className={`grid size-9 place-items-center rounded-lg ${item.iconClassName}`}>
+                        <Icon className="size-4" />
+                      </span>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
 
             <HistorialReporteAccionesTable registros={registrosOrdenados} onView={setSelectedRegistro} />
             {selectedRegistro ? <DetalleReporteModal registro={selectedRegistro} onClose={() => setSelectedRegistro(null)} onUpdate={updateRegistro} /> : null}

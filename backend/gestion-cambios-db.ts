@@ -157,6 +157,15 @@ function toChange(row: NonNullable<ChangeRow>): GestionCambio {
   }));
   const approval = approvals.at(-1);
   const followup = row.movimientos.filter((movement) => movement.type === "SEGUIMIENTO").at(-1);
+  const latestApproverMovement = row.movimientos
+    .filter((movement) => movement.selectedApproverId || movement.selectedApproverName)
+    .at(-1);
+  const selectedApproverId = row.selectedApproverId ?? latestApproverMovement?.selectedApproverId ?? undefined;
+  const selectedApproverName = row.selectedApproverName ?? latestApproverMovement?.selectedApproverName ?? undefined;
+  const selectedApproverRole = row.selectedApproverRole ?? latestApproverMovement?.selectedApproverRole ?? undefined;
+  const normalizedSelectedApproverRole: GestionCambioRol | undefined = isRole(selectedApproverRole ?? null)
+    ? (selectedApproverRole as GestionCambioRol)
+    : undefined;
   const changeTypes = parseJson<string[]>(row.changeTypes, []);
   const detalle: SolicitudCambioData = {
     empresa: row.company as SolicitudCambioData["empresa"],
@@ -164,7 +173,7 @@ function toChange(row: NonNullable<ChangeRow>): GestionCambio {
     liderProcesoId: row.leaderUserId ?? undefined,
     proceso: row.process,
     tiposCambio: changeTypes,
-    aprobadorSeleccionadoId: row.selectedApproverId ?? undefined,
+    aprobadorSeleccionadoId: selectedApproverId,
     analisis: parseJson<Record<string, string>>(row.analysis, {}),
     plan: parseJson<SolicitudCambioData["plan"]>(row.implementationPlan, []),
   };
@@ -185,9 +194,9 @@ function toChange(row: NonNullable<ChangeRow>): GestionCambio {
     responsableActualNombre: row.currentResponsibleName ?? undefined,
     creadorId: row.creatorUserId,
     creadorNombre: row.creatorName,
-    aprobadorSeleccionadoId: row.selectedApproverId ?? undefined,
-    aprobadorSeleccionadoNombre: row.selectedApproverName ?? undefined,
-    aprobadorSeleccionadoRol: isRole(row.selectedApproverRole) ? row.selectedApproverRole : undefined,
+    aprobadorSeleccionadoId: selectedApproverId,
+    aprobadorSeleccionadoNombre: selectedApproverName,
+    aprobadorSeleccionadoRol: normalizedSelectedApproverRole,
     validacionCalidad: row.qualityValidation ?? undefined,
     observacionesCorreccion: row.correctionNotes ?? undefined,
     fechaAprobacion: dateOnly(row.approvedAt),

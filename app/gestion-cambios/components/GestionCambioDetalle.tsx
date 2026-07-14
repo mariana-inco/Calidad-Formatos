@@ -10,12 +10,13 @@ import {
   MessageSquareText,
   ShieldCheck,
   Tag,
+  TriangleAlert,
   UserCheck,
   Users,
   Workflow,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { analisisFields } from "./formData";
 import { canDownloadGestionCambioPdf, downloadGestionCambioPdf } from "./GestionCambioPdf";
 import type { AprobacionCambioData, GestionCambio, GestionCambioWorkflowAction, SeguimientoCambioData, UsuarioGestionCambio } from "./types";
@@ -205,6 +206,20 @@ export function GestionCambioDetalle({
   );
   const estadoActual = getEffectiveEstado(registro);
   const canExportPdf = canDownloadGestionCambioPdf(registro);
+  const latestSelectedApprover = registro.historial
+    .filter((decision) => decision.aprobadorSeleccionadoNombre)
+    .at(-1);
+  const aprobadorGestionadoNombre = registro.aprobadorSeleccionadoNombre ?? latestSelectedApprover?.aprobadorSeleccionadoNombre;
+  const responsablesPlan = Array.from(
+    new Set(registro.detalle.plan.map((plan) => plan.responsable).filter((responsable) => responsable.trim())),
+  );
+
+  useEffect(() => {
+    if (!error) return;
+
+    const timeout = window.setTimeout(() => setError(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [error]);
 
   const requireText = (value: string, message: string) => {
     if (value.trim()) return true;
@@ -213,7 +228,7 @@ export function GestionCambioDetalle({
   };
 
   const requestLeaderCorrection = () => {
-    if (!requireText(observacionesCorreccion, "Escribe las observaciones para devolver el registro al líder.")) return;
+    if (!requireText(observacionesCorreccion, "Falta diligenciar el campo: Observaciones para devolver al líder.")) return;
     setError("");
     onWorkflowAction?.("SOLICITAR_CORRECCION", { observacionesCorreccion });
   };
@@ -223,7 +238,7 @@ export function GestionCambioDetalle({
       requestLeaderCorrection();
       return;
     }
-    if (!requireText(aprobadorSeleccionadoId, "Seleccione a quién enviar para aprobación.")) return;
+    if (!requireText(aprobadorSeleccionadoId, "Falta diligenciar el campo: Enviar para aprobación a.")) return;
 
     const aprobador = responsablesAprobacion.find((responsable) => responsable.id === aprobadorSeleccionadoId);
 
@@ -237,7 +252,7 @@ export function GestionCambioDetalle({
   };
 
   const registerApprovalDecision = () => {
-    if (!requireText(aprobacion.observaciones, "Las observaciones de aprobación son obligatorias.")) return;
+    if (!requireText(aprobacion.observaciones, "Falta diligenciar el campo: Observaciones de aprobación.")) return;
     setError("");
     const action = isLeaderApprovalTurn
       ? aprobacion.aprobado === "SI"
@@ -251,11 +266,11 @@ export function GestionCambioDetalle({
 
   const validateSeguimiento = () => {
     if (!seguimiento.cambioEficaz) {
-      setError("Selecciona si el cambio fue eficaz.");
+      setError("Falta diligenciar el campo: ¿El cambio fue eficaz?");
       return false;
     }
-    if (seguimiento.cambioEficaz === "NO" && !requireText(seguimiento.observaciones, "Las observaciones del seguimiento son obligatorias cuando el cambio no fue eficaz.")) return false;
-    if (!requireText(seguimiento.acciones, "Las acciones del seguimiento son obligatorias.")) return false;
+    if (seguimiento.cambioEficaz === "NO" && !requireText(seguimiento.observaciones, "Falta diligenciar el campo: Observaciones del seguimiento.")) return false;
+    if (!requireText(seguimiento.acciones, "Falta diligenciar el campo: Acciones a tomar.")) return false;
     setError("");
     return true;
   };
@@ -440,6 +455,32 @@ export function GestionCambioDetalle({
 
   return (
     <div className="space-y-4 text-[#111a32]">
+      {error ? (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="fixed bottom-5 right-5 z-[95] w-[min(92vw,26rem)] rounded-lg border border-amber-200 bg-white p-4 text-[#08142f] shadow-2xl"
+        >
+          <div className="flex items-start gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-700">
+              <TriangleAlert className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-amber-700">Campo pendiente</p>
+              <p className="mt-1 text-sm font-bold leading-5 text-slate-800">{error}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError("")}
+              className="grid size-7 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Cerrar mensaje de validación"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-5 bg-[radial-gradient(circle_at_92%_0%,rgba(16,185,129,0.12),transparent_36%)] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -509,8 +550,14 @@ export function GestionCambioDetalle({
               <p className="mt-2 text-sm font-black uppercase text-[#111a32]">{registro.liderProceso}</p>
             </div>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Aprobador seleccionado</p>
-              <p className="mt-2 text-sm font-black uppercase text-[#111a32]">{registro.aprobadorSeleccionadoNombre || "Sin asignar"}</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Aprobador seleccionado por Calidad</p>
+              <p className="mt-2 text-sm font-black uppercase text-[#111a32]">{aprobadorGestionadoNombre || "Pendiente por Calidad"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Responsables del plan</p>
+              <p className="mt-2 text-sm font-black uppercase text-[#111a32]">
+                {responsablesPlan.length > 0 ? responsablesPlan.join(", ") : "Sin actividades asignadas"}
+              </p>
             </div>
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Cierre</p>
@@ -603,7 +650,6 @@ export function GestionCambioDetalle({
               {isLeaderApprovalTurn || isApproverTurn ? renderAprobacionCambio() : null}
               {isQualityFollowup ? renderSeguimientoCambio() : null}
               {registro.estado === "APROBADO" || registro.estado === "CERRADO" ? <p className="text-sm font-bold text-emerald-700">El cambio fue finalizado como aprobado.</p> : null}
-              {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{error}</div> : null}
             </div>
           </div>
         </section>

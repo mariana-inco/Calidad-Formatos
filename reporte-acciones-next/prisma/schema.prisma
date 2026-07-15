@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model RegistroGestionCambio {
+  id                     String   @id @default(cuid())
+  numero                 Int      @unique @default(autoincrement())
+  code                   String   @unique
+  company                String
+  process                String
+  leaderUserId           String?
+  leaderName             String
+  creatorUserId          String
+  creatorName            String
+  currentState           String   @default("BORRADOR")
+  currentResponsibleRole String
+  currentResponsibleId   String?
+  currentResponsibleName String?
+  selectedApproverId     String?
+  selectedApproverName   String?
+  selectedApproverRole   String?
+  changeTypes            String
+  analysis               String
+  implementationPlan     String
+  qualityValidation      String?
+  correctionNotes        String?
+  approvedAt             DateTime?
+  followupStartedAt      DateTime?
+  closeDueAt             DateTime?
+  closedAt               DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  movimientos MovimientoGestionCambio[]
+
+  @@index([company])
+  @@index([process])
+  @@index([creatorUserId])
+  @@index([leaderUserId])
+  @@index([currentState])
+  @@index([currentResponsibleRole, currentResponsibleId])
+  @@map("registros_gestion_cambios")
+}
+
+model MovimientoGestionCambio {
+  id                   String   @id @default(cuid())
+  changeRequestId      String
+  type                 String
+  action               String
+  fromState            String?
+  toState              String
+  userId               String?
+  userName             String
+  role                 String?
+  position             String?
+  observation          String?
+  selectedApproverId   String?
+  selectedApproverName String?
+  selectedApproverRole String?
+  approved             Boolean?
+  signature            String?
+  effective            Boolean?
+  followupActions      String?
+  createdAt            DateTime @default(now())
+
+  registroGestionCambio RegistroGestionCambio @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  @@index([changeRequestId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("movimientos_gestion_cambios")
+}
+
+model RegistroReporteAcciones {
+  id                            String   @id @default(cuid())
+  numero                        Int      @unique @default(autoincrement())
+  consecutivo                   String?  @unique
+  company                       String
+  formatCode                    String
+  formatVersion                 String
+  formatName                    String
+  formatProcess                 String
+  formatDate                    String
+  leaderName                    String
+  leaderUserId                  String?
+  creatorUserId                 String?
+  creatorName                   String
+  process                       String
+  findingDate                   String
+  findingType                   String
+  source                        String
+  findingDescription            String
+  causes                        String
+  problemDescription            String
+  analysisMethodology           String
+  identifiedCauses              String
+  rootCause                     String
+  analysisObservations          String
+  consequences                  String
+  risksOpportunities            String
+  status                        String
+  currentResponsible            String
+  effectivenessFollowupDate     String?
+  effectivenessResponsible      String?
+  qualityObservations           String?
+  effectivenessValidationDate   DateTime?
+  effectivenessResult           Boolean?
+  effectivenessObservation      String?
+  effectivenessEvidence         String?
+  effectivenessEvidenceName     String?
+  effectivenessDecision         String?
+  effectivenessUser             String?
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+
+  acciones    AccionReporteAcciones[]
+  movimientos MovimientoReporteAcciones[]
+
+  @@index([company])
+  @@index([process])
+  @@index([findingType])
+  @@index([status])
+  @@index([currentResponsible])
+  @@index([createdAt])
+  @@map("registros_reporte_acciones")
+}
+
+model AccionReporteAcciones {
+  id                         String @id @default(cuid())
+  reportId                   String
+  clientId                   String
+  number                     Int
+  actionType                 String
+  actionDescription          String
+  implementationDate         String
+  implementationResponsible  String
+  expectedResult             String
+  requiredEvidence           String
+  observations               String
+  individualStatus           String
+  closeStatus                String
+  closeDate                  String?
+  closeObservation           String?
+  evidence                   String?
+  evidenceName               String?
+  noEvidenceJustification    String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  registro RegistroReporteAcciones @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([individualStatus])
+  @@index([closeStatus])
+  @@map("acciones_reporte_acciones")
+}
+
+model MovimientoReporteAcciones {
+  id           String   @id @default(cuid())
+  reportId     String
+  clientId     String
+  type         String
+  eventDate    DateTime
+  userName     String
+  role         String
+  position     String?
+  action       String
+  fromStatus   String?
+  toStatus     String?
+  observation  String?
+  decision     String?
+  understands  Boolean?
+  signature    String?
+  createdAt    DateTime @default(now())
+
+  registro RegistroReporteAcciones @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([type])
+  @@index([eventDate])
+  @@index([toStatus])
+  @@index([decision])
+  @@map("movimientos_reporte_acciones")
+}

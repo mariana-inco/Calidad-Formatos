@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { GestionCambiosPage as GestionCambiosPageContent } from "./components/GestionCambiosPage";
+import { GestionCambiosPage as GestionCambiosPageContent } from "@/FRONTEND/gestion-cambios/components/GestionCambiosPage";
 
 export const metadata: Metadata = {
   title: "SIG-F006 - Gestión de Cambios",

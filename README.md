@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Formatos SIG
 
-## Getting Started
+Repositorio organizado por formato. Cada formato vive en su propia carpeta y funciona como proyecto Next.js independiente.
 
-First, run the development server:
+## Carpetas
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```txt
+gestiondecambios/
+  formato-gestion-cambios/    Formato SIG-F006 - Gestion de Cambios
+  formato-reporte-acciones/   Formato Reporte de Acciones
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Ejecutar desde la raiz
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev:gestion-cambios
+npm run dev:reporte-acciones
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Validar desde la raiz
 
-## Learn More
+```bash
+npm run typecheck:gestion-cambios
+npm run typecheck:reporte-acciones
+npm run build:gestion-cambios
+npm run build:reporte-acciones
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Regla de orden
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Todo archivo propio de un formato debe vivir dentro de su carpeta:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Gestion de Cambios: `formato-gestion-cambios/`
+- Reporte de Acciones: `formato-reporte-acciones/`
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+La raiz queda solo para archivos compartidos de control del repositorio, como `.gitignore`, `AGENTS.md` y este README.

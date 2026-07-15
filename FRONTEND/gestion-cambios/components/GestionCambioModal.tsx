@@ -15,17 +15,14 @@ export function GestionCambioModal({ isOpen, title, onClose, children, formId, s
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-6">
-      <section
-        className="flex max-h-[90vh] min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
-        style={{ width: "72vw", minWidth: "960px", maxWidth: "calc(100vw - 48px)" }}
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-[#dfe7f2] bg-white px-7 py-5 sm:px-7">
-          <div className="flex items-start gap-3">
-            <ClipboardList className="mt-1 size-7 text-[#536784]" />
-            <div>
-              <h2 className="text-2xl font-black leading-8 text-[#34435e]">{title}</h2>
-              <p className="mt-6 max-w-3xl text-base leading-6 text-[#536784]">Completa la información para registrar la solicitud.</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-2 sm:p-6">
+      <section className="flex max-h-[92vh] w-[calc(100vw_-_1rem)] min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[90vh] sm:w-[calc(100vw_-_48px)] lg:w-[72vw] lg:max-w-[1228px]">
+        <header className="flex items-start justify-between gap-3 border-b border-[#dfe7f2] bg-white px-4 py-4 sm:gap-4 sm:px-7 sm:py-5">
+          <div className="flex min-w-0 items-start gap-2 sm:gap-3">
+            <ClipboardList className="mt-1 size-6 shrink-0 text-[#536784] sm:size-7" />
+            <div className="min-w-0">
+              <h2 className="break-words text-xl font-black leading-7 text-[#34435e] sm:text-2xl sm:leading-8">{title}</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-5 text-[#536784] sm:mt-6 sm:text-base sm:leading-6">Completa la información para registrar la solicitud.</p>
             </div>
           </div>
           <button
@@ -38,8 +35,8 @@ export function GestionCambioModal({ isOpen, title, onClose, children, formId, s
           </button>
         </header>
 
-        <div className="min-w-0 flex-1 overflow-y-auto bg-[#f7fafd] px-3 py-4 sm:px-6">
-          <div className="mx-auto min-w-0" style={{ width: "calc(100% - 56px)", maxWidth: "1228px" }}>
+        <div className="min-w-0 flex-1 overflow-y-auto bg-[#f7fafd] px-2 py-3 sm:px-6 sm:py-4">
+          <div className="mx-auto w-full min-w-0 sm:w-[calc(100%_-_56px)] sm:max-w-[1228px]">
             {children}
           </div>
         </div>

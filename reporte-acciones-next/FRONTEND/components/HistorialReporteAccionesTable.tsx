@@ -11,6 +11,7 @@ type HistorialReporteAccionesTableProps = {
 
 const estadoClassName: Record<ReporteEstado, string> = {
   Borrador: "border-slate-200 bg-slate-100 text-slate-700",
+  "Pendiente aprobación líder": "border-blue-200 bg-blue-50 text-blue-800",
   "En revisión de Calidad": "border-amber-200 bg-amber-50 text-amber-800",
   "Devuelto para corrección": "border-red-200 bg-red-50 text-red-700",
   "Aprobado por Calidad": "border-blue-200 bg-blue-50 text-blue-800",

@@ -56,15 +56,23 @@ export function CalidadReporteAccionesView({
   const [evidenceName, setEvidenceName] = useState("");
   const [error, setError] = useState("");
 
-  const expectedState: ReporteEstado = mode === "aprobacion" ? "En revisión de Calidad" : "En validación de eficacia";
+  const expectedStates: ReporteEstado[] =
+    mode === "aprobacion" ? ["En revisión de Calidad", "Aprobado por Calidad"] : ["En validación de eficacia"];
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return registros.filter(
       (item) =>
-        item.estado === expectedState &&
+        expectedStates.includes(item.estado) &&
         (!term || [item.consecutivo, item.liderProceso, item.proceso, item.tipoHallazgo].some((value) => value.toLowerCase().includes(term))),
     );
-  }, [expectedState, registros, search]);
+  }, [expectedStates, registros, search]);
+
+  const openSelected = (registro: ReporteAccionesRegistro) => {
+    setSelected(registro);
+    setFollowupDate(registro.detalle.fechaSeguimientoEficacia);
+    setEffectivenessOwner(registro.detalle.responsableValidarEficacia);
+    setObservation(registro.detalle.observacionesCalidad);
+  };
 
   const close = () => {
     setSelected(null);
@@ -93,12 +101,16 @@ export function CalidadReporteAccionesView({
       setError("Define el responsable de validar la eficacia antes de aprobar.");
       return;
     }
+    if (approved && !observation.trim()) {
+      setError("Registra en observaciones de Calidad cómo se definió el seguimiento de eficacia.");
+      return;
+    }
     if (!signature) {
       setError("Gestión de Calidad debe firmar la decisión.");
       return;
     }
 
-    const state: ReporteEstado = approved ? "En implementación" : "Devuelto para corrección";
+    const state: ReporteEstado = approved ? "Aprobado por Calidad" : "Devuelto para corrección";
     const review: ReporteRevision = {
       id: crypto.randomUUID(),
       usuario: "Gestión de Calidad",
@@ -113,16 +125,38 @@ export function CalidadReporteAccionesView({
     onUpdate({
       ...selected,
       estado: state,
+      responsableActual: approved ? "Gestión de Calidad" : selected.liderProceso,
+      detalle: {
+        ...selected.detalle,
+        estado: state,
+        aprobadorActual: approved ? "Gestión de Calidad" : selected.liderProceso,
+        fechaSeguimientoEficacia: approved ? followupDate : selected.detalle.fechaSeguimientoEficacia,
+        responsableValidarEficacia: approved ? effectivenessOwner.trim() : selected.detalle.responsableValidarEficacia,
+        observacionesCalidad: observation.trim(),
+        revisiones: [...(selected.detalle.revisiones ?? []), review],
+        historial: addHistory(selected, state, approved ? "Aprobó y definió seguimiento de eficacia" : "Devolvió para corrección", observation.trim()),
+      },
+    });
+    close();
+  };
+
+  const remitToLeader = () => {
+    if (!selected) return;
+    const state: ReporteEstado = "En implementación";
+    onUpdate({
+      ...selected,
+      estado: state,
       responsableActual: selected.liderProceso,
       detalle: {
         ...selected.detalle,
         estado: state,
         aprobadorActual: selected.liderProceso,
-        fechaSeguimientoEficacia: approved ? followupDate : selected.detalle.fechaSeguimientoEficacia,
-        responsableValidarEficacia: approved ? effectivenessOwner.trim() : selected.detalle.responsableValidarEficacia,
-        observacionesCalidad: observation.trim(),
-        revisiones: [...(selected.detalle.revisiones ?? []), review],
-        historial: addHistory(selected, state, approved ? "Aprobó el reporte" : "Devolvió para corrección", observation.trim()),
+        historial: addHistory(
+          selected,
+          state,
+          "Remitió el reporte al líder",
+          "Calidad remite el reporte al líder del proceso para implementar y cerrar las acciones.",
+        ),
       },
     });
     close();
@@ -227,14 +261,15 @@ export function CalidadReporteAccionesView({
       {filtered.length ? (
         <div className="overflow-hidden rounded-lg border border-[#d8e2ee] bg-white shadow-sm">
           {filtered.map((registro) => (
-            <article key={registro.id} className="grid gap-4 border-b border-slate-100 p-5 last:border-0 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
+            <article key={registro.id} className="grid gap-4 border-b border-slate-100 p-5 last:border-0 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center">
               <div>
                 <p className="inline-flex rounded-md bg-[#071127] px-3 py-1.5 text-xs font-black text-white">{registro.consecutivo}</p>
                 <p className="mt-1 text-xs text-slate-500">{new Date(registro.fechaCreacion).toLocaleString("es-CO")}</p>
               </div>
               <div><p className="text-xs font-black uppercase text-slate-500">Proceso</p><p className="font-semibold">{registro.proceso}</p></div>
               <div><p className="text-xs font-black uppercase text-slate-500">Líder</p><p className="font-semibold">{registro.liderProceso}</p></div>
-              <button type="button" onClick={() => setSelected(registro)} className="grid size-10 place-items-center rounded-md border border-[#cbd6e4] text-[#34435e] transition hover:border-blue-500 hover:text-blue-700" title="Revisar">
+              <div><p className="text-xs font-black uppercase text-slate-500">Estado</p><p className="font-semibold">{registro.estado}</p></div>
+              <button type="button" onClick={() => openSelected(registro)} className="grid size-10 place-items-center rounded-md border border-[#cbd6e4] text-[#34435e] transition hover:border-blue-500 hover:text-blue-700" title="Revisar">
                 <Eye className="size-5" />
               </button>
             </article>
@@ -250,7 +285,7 @@ export function CalidadReporteAccionesView({
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/65 p-3">
           <section className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-2xl">
             <header className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white p-5">
-              <div><p className="text-xs font-black text-blue-700">{selected.consecutivo}</p><h2 className="text-xl font-black">Revisión de Calidad</h2></div>
+              <div><p className="text-xs font-black text-blue-700">{selected.consecutivo}</p><h2 className="text-xl font-black">{selected.estado === "Aprobado por Calidad" ? "Remisión al líder" : "Revisión de Calidad"}</h2></div>
               <button type="button" onClick={close} className="grid size-10 place-items-center rounded-md border border-slate-300"><X className="size-5" /></button>
             </header>
             <div className="space-y-6 p-5">
@@ -260,12 +295,12 @@ export function CalidadReporteAccionesView({
                 <div><p className="text-xs font-black uppercase text-slate-500">Acciones</p><p className="mt-1 text-sm font-bold">{selected.detalle.acciones.length} registradas</p></div>
               </div>
 
-              {mode === "aprobacion" ? (
+              {mode === "aprobacion" && selected.estado !== "Aprobado por Calidad" ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block"><span className="text-xs font-black uppercase text-slate-600">Fecha de seguimiento de eficacia</span><input type="date" min={new Date().toISOString().slice(0, 10)} value={followupDate} onChange={(e) => setFollowupDate(e.target.value)} className={`mt-2 ${inputClass}`} /></label>
                   <label className="block"><span className="text-xs font-black uppercase text-slate-600">Responsable de validar eficacia</span><input value={effectivenessOwner} onChange={(e) => setEffectivenessOwner(e.target.value)} placeholder="Nombre del responsable" className={`mt-2 ${inputClass}`} /></label>
                 </div>
-              ) : (
+              ) : mode === "eficacia" ? (
                 <>
                   <div>
                     <p className="text-xs font-black uppercase text-slate-600">¿La acción fue eficaz?</p>
@@ -277,14 +312,24 @@ export function CalidadReporteAccionesView({
                   <label className="block"><span className="text-xs font-black uppercase text-slate-600">Evidencia de validación</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" onChange={(e) => readEvidence(e.target.files?.[0])} className={`mt-2 ${inputClass} py-2`} /></label>
                   <label className="block"><span className="text-xs font-black uppercase text-slate-600">Decisión final</span><select value={decision} onChange={(e) => setDecision(e.target.value as typeof decision)} className={`mt-2 ${inputClass}`}><option value="">Seleccionar</option><option>Cerrar reporte</option><option>Reabrir acción</option><option>Crear nueva acción</option></select></label>
                 </>
+              ) : (
+                <div className="rounded-md border border-blue-100 bg-blue-50 p-4 text-sm font-semibold leading-6 text-blue-950">
+                  Calidad ya aprobó el reporte y definió el seguimiento. El siguiente paso del flujo es remitirlo al líder del proceso para implementar y cerrar las acciones.
+                </div>
               )}
 
-              <label className="block"><span className="text-xs font-black uppercase text-slate-600">Observación</span><textarea value={observation} onChange={(e) => setObservation(e.target.value)} className={`mt-2 ${textareaClass}`} /></label>
-              <SignaturePad value={signature} label="Firma de Gestión de Calidad" onChange={setSignature} />
+              {selected.estado !== "Aprobado por Calidad" ? (
+                <>
+                  <label className="block"><span className="text-xs font-black uppercase text-slate-600">Observación</span><textarea value={observation} onChange={(e) => setObservation(e.target.value)} className={`mt-2 ${textareaClass}`} /></label>
+                  <SignaturePad value={signature} label="Firma de Gestión de Calidad" onChange={setSignature} />
+                </>
+              ) : null}
               {error ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p> : null}
 
               <div className="flex flex-col justify-end gap-3 sm:flex-row">
-                {mode === "aprobacion" ? (
+                {mode === "aprobacion" && selected.estado === "Aprobado por Calidad" ? (
+                  <button type="button" onClick={remitToLeader} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 font-bold text-white transition hover:bg-blue-700"><CheckCircle2 className="size-4" /> Remitir al líder</button>
+                ) : mode === "aprobacion" ? (
                   <>
                     <button type="button" onClick={() => saveReview(false)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-red-300 px-5 font-bold text-red-700"><RotateCcw className="size-4" /> Solicitar corrección</button>
                     <button type="button" onClick={() => saveReview(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 font-bold text-white transition hover:bg-blue-700"><CheckCircle2 className="size-4" /> Aprobar</button>

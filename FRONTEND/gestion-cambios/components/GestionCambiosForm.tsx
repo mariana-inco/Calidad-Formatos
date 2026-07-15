@@ -405,7 +405,8 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
             </div>
 
             {tiposCambio.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+              <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm">
+                <div className="min-w-[22rem]">
                 <div className="grid grid-cols-[1fr_5rem] bg-[#eef3f8] text-xs font-black text-slate-700">
                   <div className="px-4 py-2 text-center">TIPO DE CAMBIO</div>
                   <div className="border-l border-emerald-800 px-3 py-2 text-center">ACCIÓN</div>
@@ -433,6 +434,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             ) : null}
 
@@ -549,7 +551,8 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
             </div>
 
             {planRows.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+              <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm">
+                <div className="min-w-[42rem]">
                 <div className="grid grid-cols-[1.4fr_1fr_9rem_5rem] bg-[#eef3f8] text-xs font-black text-slate-700">
                   <div className="px-4 py-2 text-center">ACTIVIDADES</div>
                   <div className="border-l border-emerald-800 px-4 py-2 text-center">RESPONSABLE</div>
@@ -584,6 +587,7 @@ export function SolicitudCambioForm({ formId, empresaActiva, usuarioActual, lide
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             ) : null}
           </div>

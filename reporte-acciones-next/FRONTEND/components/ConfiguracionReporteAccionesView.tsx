@@ -29,6 +29,12 @@ type UsuarioDraft = {
 
 const roleConfigs: RoleConfig[] = [
   {
+    rol: "Colaborador",
+    title: "Colaborador",
+    description: "Puede crear reportes de acciones y enviarlos al líder del proceso para revisión.",
+    badgeClassName: "border-slate-200 bg-white text-slate-800",
+  },
+  {
     rol: "Calidad",
     title: "Gestión de Calidad",
     description: "Revisa el reporte, solicita correcciones, aprueba, define seguimiento y valida el cierre.",

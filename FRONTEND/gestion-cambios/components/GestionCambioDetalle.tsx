@@ -26,7 +26,6 @@ import {
   getEffectiveEstado,
   getEstadoCierre,
   hasApproverDecision,
-  hasQualityInitialReview,
   roleLabels,
 } from "./workflow";
 
@@ -150,6 +149,17 @@ function FirmaPlaceholderButton({ label = "Firmar" }: { label?: string }) {
   );
 }
 
+function createApprovalDraft(usuario?: UsuarioGestionCambio): AprobacionCambioData {
+  return {
+    aprobado: "SI",
+    nombre: usuario?.nombre ?? "",
+    cargo: usuario?.cargo ?? roleLabels[usuario?.rol ?? "GERENCIA_ADMINISTRATIVA"],
+    fecha: "",
+    observaciones: "",
+    rolAprobador: usuario?.rol ?? "GERENCIA_ADMINISTRATIVA",
+  };
+}
+
 export function GestionCambioDetalle({
   registro,
   showApprovalActions = false,
@@ -160,16 +170,7 @@ export function GestionCambioDetalle({
 }: GestionCambioDetalleProps) {
   const [calidadAprueba, setCalidadAprueba] = useState<"SI" | "NO">("SI");
   const [observacionesCorreccion, setObservacionesCorreccion] = useState(registro.observacionesCorreccion ?? "");
-  const [aprobacion, setAprobacion] = useState<AprobacionCambioData>(
-    registro.aprobacion ?? {
-      aprobado: "SI",
-      nombre: usuarioActual?.nombre ?? "",
-      cargo: usuarioActual?.cargo ?? roleLabels[usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA"],
-      fecha: "",
-      observaciones: "",
-      rolAprobador: usuarioActual?.rol ?? "GERENCIA_ADMINISTRATIVA",
-    },
-  );
+  const [aprobacion, setAprobacion] = useState<AprobacionCambioData>(() => createApprovalDraft(usuarioActual));
   const [seguimiento, setSeguimiento] = useState<SeguimientoCambioData>(
     registro.seguimiento ?? {
       cambioEficaz: "",
@@ -185,7 +186,7 @@ export function GestionCambioDetalle({
   const [error, setError] = useState("");
   const [timelineOpen, setTimelineOpen] = useState(false);
 
-  const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD" && !hasQualityInitialReview(registro);
+  const isQualityReview = registro.estado === "EN_REVISION_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD";
   const isQualityFollowup = registro.estado === "EN_SEGUIMIENTO_CALIDAD" && usuarioActual?.rol === "GESTION_CALIDAD";
   const isLeaderApprovalTurn =
     registro.estado === "PENDIENTE_APROBACION_LIDER" &&
@@ -220,6 +221,10 @@ export function GestionCambioDetalle({
     const timeout = window.setTimeout(() => setError(""), 5000);
     return () => window.clearTimeout(timeout);
   }, [error]);
+
+  useEffect(() => {
+    setAprobacion(createApprovalDraft(usuarioActual));
+  }, [registro.id, registro.estado, usuarioActual?.id, usuarioActual?.nombre, usuarioActual?.cargo, usuarioActual?.rol]);
 
   const requireText = (value: string, message: string) => {
     if (value.trim()) return true;
@@ -660,7 +665,7 @@ export function GestionCambioDetalle({
           <section className="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
               <div>
-                <h3 className="text-lg font-black text-slate-950">Línea de tiempo del registro</h3>
+                <h3 className="text-lg font-black text-slate-950">Pasos de Aprobación</h3>
                 <p className="mt-1 text-xs font-semibold text-slate-500">{registro.codigo}</p>
               </div>
               <button

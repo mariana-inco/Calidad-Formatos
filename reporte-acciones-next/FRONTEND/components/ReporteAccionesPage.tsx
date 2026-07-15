@@ -4,6 +4,7 @@ import { CheckCircle2, ClipboardList, Clock3, FileDown, FileText, Layers3, Plus,
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { CalidadReporteAccionesView } from "./CalidadReporteAccionesView";
+import { ConfiguracionReporteAccionesView } from "./ConfiguracionReporteAccionesView";
 import { HistorialReporteAccionesTable } from "./HistorialReporteAccionesTable";
 import { ReporteAccionesForm } from "./ReporteAccionesForm";
 import { ReporteAccionesTabs, type ReporteAccionesTab } from "./ReporteAccionesTabs";
@@ -19,6 +20,15 @@ const formatosPorEmpresa: Record<EmpresaRocaKey, { codigo: string; version: stri
 const registrosIniciales: ReporteAccionesRegistro[] = [];
 const usuariosIniciales: UsuarioReporteAcciones[] = [
   {
+    id: "usuario-colaborador-demo",
+    nombre: "Colaborador ROCA",
+    correo: "colaborador@roca.local",
+    empresa: "INCO",
+    rol: "Colaborador",
+    proceso: "Gestión de Calidad",
+    activo: true,
+  },
+  {
     id: "usuario-lider-demo",
     nombre: "Líder de proceso",
     correo: "lider.proceso@roca.local",
@@ -28,16 +38,9 @@ const usuariosIniciales: UsuarioReporteAcciones[] = [
     activo: true,
   },
 ];
-const STORAGE_KEY = "roca-reporte-acciones-sig-f005";
-
 function getConsecutivoNumber(consecutivo: string, prefix: string) {
   const match = consecutivo.match(new RegExp(`^${prefix}-\\d{4}-(\\d+)$`));
   return match ? Number(match[1]) : 0;
-}
-
-function getNextConsecutivo(registros: ReporteAccionesRegistro[], prefix: string) {
-  const nextNumber = registros.reduce((max, registro) => Math.max(max, getConsecutivoNumber(registro.consecutivo, prefix)), 0) + 1;
-  return `${prefix}-2026-${String(nextNumber).padStart(3, "0")}`;
 }
 
 function cloneReporteData(data: ReporteAccionesData) {
@@ -61,16 +64,23 @@ function DetalleReporteModal({
   registro,
   onClose,
   onUpdate,
+  usuarioActual,
 }: {
   registro: ReporteAccionesRegistro;
   onClose: () => void;
   onUpdate: (registro: ReporteAccionesRegistro) => void;
+  usuarioActual?: UsuarioReporteAcciones;
 }) {
   const canImplement =
     registro.estado === "En implementación" ||
     registro.estado === "Pendiente de cierre por líder" ||
     registro.estado === "No eficaz / Requiere nueva acción";
   const canCorrect = registro.estado === "Devuelto para corrección";
+  const canLeaderReview =
+    registro.estado === "Pendiente aprobación líder" &&
+    usuarioActual?.rol === "Líder de proceso" &&
+    (registro.liderProcesoId === usuarioActual.id || registro.liderProceso === usuarioActual.nombre);
+  const actionInputClass = "min-h-10 w-full rounded-md border border-slate-300 px-2 py-2 text-sm font-semibold outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 
   const updateDetail = (fields: Partial<ReporteAccionesRegistro["detalle"]>) => {
     onUpdate({ ...registro, detalle: { ...registro.detalle, ...fields } });
@@ -110,6 +120,15 @@ function DetalleReporteModal({
         ...registro.detalle,
         estado: state,
         aprobadorActual: "Gestión de Calidad",
+        validacionEficacia: {
+          eficaz: null,
+          fecha: "",
+          observacion: "",
+          evidencia: null,
+          evidenciaNombre: "",
+          decision: "",
+          usuario: "",
+        },
         historial: [
           ...(registro.detalle.historial ?? []),
           {
@@ -149,6 +168,65 @@ function DetalleReporteModal({
             estadoAnterior: registro.estado,
             estadoNuevo: state,
             observacion: "Se atendieron las observaciones de Gestión de Calidad.",
+          },
+        ],
+      },
+    });
+    onClose();
+  };
+
+  const approveLeaderAndSendToQuality = () => {
+    const state = "En revisión de Calidad" as const;
+    onUpdate({
+      ...registro,
+      estado: state,
+      responsableActual: "Gestión de Calidad",
+      detalle: {
+        ...registro.detalle,
+        estado: state,
+        aprobadorActual: "Gestión de Calidad",
+        historial: [
+          ...(registro.detalle.historial ?? []),
+          {
+            id: crypto.randomUUID(),
+            fecha: new Date().toISOString(),
+            usuario: usuarioActual?.nombre ?? registro.liderProceso,
+            rol: "Líder de proceso",
+            accion: "Aprobó el líder y envió a Calidad",
+            estadoAnterior: registro.estado,
+            estadoNuevo: state,
+            observacion: "El líder del proceso revisa el reporte y lo envía a Gestión de Calidad.",
+          },
+        ],
+      },
+    });
+    onClose();
+  };
+
+  const returnFromLeader = () => {
+    const observation = window.prompt("Observación para devolver el reporte al creador:")?.trim();
+    if (!observation) return;
+    const state = "Devuelto para corrección" as const;
+    onUpdate({
+      ...registro,
+      estado: state,
+      responsableActual: registro.creadorNombre ?? registro.detalle.usuarioCreador,
+      detalle: {
+        ...registro.detalle,
+        estado: state,
+        aprobadorActual: registro.creadorNombre ?? registro.detalle.usuarioCreador,
+        observacionesCalidad: observation,
+        historial: [
+          ...(registro.detalle.historial ?? []),
+          {
+            id: crypto.randomUUID(),
+            fecha: new Date().toISOString(),
+            usuario: usuarioActual?.nombre ?? registro.liderProceso,
+            rol: "Líder de proceso",
+            accion: "Devolvió el líder para corrección",
+            estadoAnterior: registro.estado,
+            estadoNuevo: state,
+            observacion: observation,
           },
         ],
       },
@@ -261,12 +339,48 @@ function DetalleReporteModal({
                   {registro.detalle.acciones.map((accion) => (
                     <tr key={accion.id}>
                       <td className="px-4 py-3 font-black text-blue-700">{accion.numero}</td>
-                      <td className="px-4 py-3 font-semibold">{accion.tipoAccion}</td>
-                      <td className="px-4 py-3">{accion.descripcionAccion}</td>
-                      <td className="px-4 py-3">{accion.resultadoEsperado}</td>
-                      <td className="px-4 py-3">{accion.evidenciaRequerida}</td>
-                      <td className="px-4 py-3">{accion.fechaImplementacion}</td>
-                      <td className="px-4 py-3 font-semibold">{accion.responsableImplementacion}</td>
+                      <td className="px-4 py-3 font-semibold">
+                        {canCorrect ? (
+                          <input value={accion.tipoAccion} onChange={(event) => updateAction(accion.id, { tipoAccion: event.target.value })} className={actionInputClass} />
+                        ) : (
+                          accion.tipoAccion
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {canCorrect ? (
+                          <textarea value={accion.descripcionAccion} onChange={(event) => updateAction(accion.id, { descripcionAccion: event.target.value })} className={actionInputClass} />
+                        ) : (
+                          accion.descripcionAccion
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {canCorrect ? (
+                          <textarea value={accion.resultadoEsperado} onChange={(event) => updateAction(accion.id, { resultadoEsperado: event.target.value })} className={actionInputClass} />
+                        ) : (
+                          accion.resultadoEsperado
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {canCorrect ? (
+                          <textarea value={accion.evidenciaRequerida} onChange={(event) => updateAction(accion.id, { evidenciaRequerida: event.target.value })} className={actionInputClass} />
+                        ) : (
+                          accion.evidenciaRequerida
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {canCorrect ? (
+                          <input type="date" value={accion.fechaImplementacion} onChange={(event) => updateAction(accion.id, { fechaImplementacion: event.target.value })} className={actionInputClass} />
+                        ) : (
+                          accion.fechaImplementacion
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-semibold">
+                        {canCorrect ? (
+                          <input value={accion.responsableImplementacion} onChange={(event) => updateAction(accion.id, { responsableImplementacion: event.target.value })} className={actionInputClass} />
+                        ) : (
+                          accion.responsableImplementacion
+                        )}
+                      </td>
                       <td className="min-w-72 px-4 py-3">
                         {canImplement ? (
                           <div className="space-y-2">
@@ -315,6 +429,17 @@ function DetalleReporteModal({
             </div>
           ) : null}
 
+          {canLeaderReview ? (
+            <div className="flex flex-col justify-end gap-3 sm:flex-row">
+              <button type="button" onClick={returnFromLeader} className="inline-flex h-11 items-center justify-center rounded-md border border-red-200 bg-red-50 px-5 font-bold text-red-700 transition hover:bg-red-100">
+                Devolver para corrección
+              </button>
+              <button type="button" onClick={approveLeaderAndSendToQuality} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 font-bold text-white transition hover:bg-blue-700">
+                <Send className="size-4" /> Aprobar y enviar a Calidad
+              </button>
+            </div>
+          ) : null}
+
           <section>
             <h3 className="text-sm font-black uppercase text-slate-800">Trazabilidad</h3>
             <div className="mt-3 divide-y divide-slate-100 rounded-md border border-slate-200">
@@ -352,12 +477,14 @@ function CrearReporteModal({
   codigoFormato,
   versionFormato,
   usuarioActual,
+  lideresProceso,
   onClose,
   onSave,
 }: {
   codigoFormato: string;
   versionFormato: string;
   usuarioActual?: UsuarioReporteAcciones;
+  lideresProceso: UsuarioReporteAcciones[];
   onClose: () => void;
   onSave: (reporte: ReporteAccionesData) => void;
 }) {
@@ -390,7 +517,7 @@ function CrearReporteModal({
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-[#f3f8ff] px-4 py-5 sm:px-7 sm:py-8">
           <div className="mx-auto min-w-0" style={{ width: "calc(100% - 56px)", maxWidth: "1228px" }}>
-            <ReporteAccionesForm codigoFormato={codigoFormato} versionFormato={versionFormato} usuarioActual={usuarioActual} onSave={onSave} />
+            <ReporteAccionesForm codigoFormato={codigoFormato} versionFormato={versionFormato} usuarioActual={usuarioActual} lideresProceso={lideresProceso} onSave={onSave} />
           </div>
         </div>
       </section>
@@ -401,14 +528,19 @@ function CrearReporteModal({
 export function ReporteAccionesPage() {
   const [activeTab, setActiveTab] = useState<ReporteAccionesTab>("historial");
   const [registros, setRegistros] = useState<ReporteAccionesRegistro[]>(registrosIniciales);
-  const [usuarios] = useState<UsuarioReporteAcciones[]>(usuariosIniciales);
-  const [usuarioActualId] = useState("usuario-lider-demo");
+  const [usuarios, setUsuarios] = useState<UsuarioReporteAcciones[]>(usuariosIniciales);
+  const [usuarioActualId, setUsuarioActualId] = useState("usuario-colaborador-demo");
   const [selectedRegistro, setSelectedRegistro] = useState<ReporteAccionesRegistro | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [saveError, setSaveError] = useState("");
 
   const formatoActivo = formatosPorEmpresa[empresaActiva];
   const usuarioActual = useMemo(() => usuarios.find((usuario) => usuario.id === usuarioActualId && usuario.activo), [usuarioActualId, usuarios]);
+  const lideresProceso = useMemo(
+    () => usuarios.filter((usuario) => usuario.empresa === empresaActiva && usuario.rol === "Líder de proceso" && usuario.activo),
+    [usuarios],
+  );
   const registrosOrdenados = useMemo(() => sortRegistrosByRecent(registros, formatoActivo.consecutivoPrefix), [formatoActivo.consecutivoPrefix, registros]);
   const resumen = useMemo(
     () => ({
@@ -422,135 +554,92 @@ export function ReporteAccionesPage() {
   );
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) setRegistros(JSON.parse(stored) as ReporteAccionesRegistro[]);
-    } finally {
-      setHydrated(true);
+    let active = true;
+
+    async function loadData() {
+      try {
+        const response = await fetch("/api/reporte-acciones", { cache: "no-store" });
+        const payload = (await response.json()) as {
+          usuarios?: UsuarioReporteAcciones[];
+          registros?: ReporteAccionesRegistro[];
+          error?: string;
+        };
+
+        if (!response.ok) throw new Error(payload.error ?? "No fue posible cargar los reportes.");
+        if (!active) return;
+        setUsuarios(payload.usuarios?.length ? payload.usuarios : usuariosIniciales);
+        setRegistros(payload.registros ?? []);
+      } catch (error) {
+        if (!active) return;
+        setSaveError(error instanceof Error ? error.message : "No fue posible cargar los reportes.");
+      } finally {
+        if (active) setIsLoading(false);
+      }
     }
+
+    loadData();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  useEffect(() => {
-    if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
-  }, [hydrated, registros]);
-
-  const createRegistro = (data: ReporteAccionesData) => {
+  const createRegistro = async (data: ReporteAccionesData) => {
     const detalle = { ...cloneReporteData(data), codigo: formatoActivo.codigo, version: formatoActivo.version };
+    setSaveError("");
 
-    setRegistros((items) => {
-      const registro: ReporteAccionesRegistro = {
-        id: crypto.randomUUID(),
-        consecutivo: getNextConsecutivo(items, formatoActivo.consecutivoPrefix),
-        fechaCreacion: new Date().toISOString(),
-        liderProceso: usuarioActual?.nombre || "Líder de proceso",
-        proceso: detalle.proceso || "Sin diligenciar",
-        tipoHallazgo: detalle.tipoHallazgo || "Sin diligenciar",
-        estado: detalle.estado,
-        responsableActual: detalle.aprobadorActual,
-        detalle: {
-          ...detalle,
-          historial: [
-            {
-              id: crypto.randomUUID(),
-              fecha: new Date().toISOString(),
-              usuario: usuarioActual?.nombre || "Líder de proceso",
-              rol: usuarioActual?.rol || "Líder de proceso",
-              accion: "Creó y envió el reporte a Calidad",
-              estadoAnterior: "Borrador",
-              estadoNuevo: "En revisión de Calidad",
-              observacion: "Reporte enviado para revisión inicial.",
-            },
-          ],
-          revisiones: [],
-          validacionEficacia: {
-            eficaz: null,
-            fecha: "",
-            observacion: "",
-            evidencia: null,
-            evidenciaNombre: "",
-            decision: "",
-            usuario: "",
-          },
-        },
-      };
+    try {
+      const response = await fetch("/api/reporte-acciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "create-report", userId: usuarioActual?.id, data: detalle }),
+      });
+      const payload = (await response.json()) as { registro?: ReporteAccionesRegistro; error?: string };
+      if (!response.ok || !payload.registro) throw new Error(payload.error ?? "No fue posible guardar el reporte.");
 
-      // Log detallado de cada campo del registro
-      const registroDetallado = {
-        "Identificación": {
-          "Consecutivo": registro.consecutivo,
-          "ID": registro.id,
-          "Fecha de Creación": registro.fechaCreacion,
-        },
-        "Información General": {
-          "Código Formato": detalle.codigo,
-          "Versión": detalle.version,
-          "Nombre": detalle.nombre,
-          "Proceso": registro.proceso,
-          "Líder Proceso": registro.liderProceso,
-        },
-        "Hallazgo": {
-          "Tipo": registro.tipoHallazgo,
-          "Fecha del Hallazgo": detalle.fechaHallazgo,
-          "Fuente": detalle.fuente,
-          "Descripción": detalle.descripcionHallazgo,
-          "Usuario Creador": detalle.usuarioCreador,
-        },
-        "Análisis": {
-          "Descripción del Problema": detalle.descripcionProblema,
-          "Metodología": detalle.metodologiaAnalisis,
-          "Causas Identificadas": detalle.causasIdentificadas,
-          "Causa Raíz": detalle.causaRaiz,
-          "Causas": detalle.causas,
-          "Consecuencias": detalle.consecuencias,
-          "Riesgos y Oportunidades": detalle.riesgosOportunidades,
-          "Observaciones": detalle.observacionesAnalisis,
-        },
-        "Flujo de Aprobación": {
-          "Estado": registro.estado,
-          "Responsable Actual": registro.responsableActual,
-          "Fecha Seguimiento Eficacia": detalle.fechaSeguimientoEficacia,
-          "Responsable Validar Eficacia": detalle.responsableValidarEficacia,
-          "Observaciones Calidad": detalle.observacionesCalidad,
-        },
-        "Acciones Registradas": detalle.acciones.map((accion) => ({
-          "N°": accion.numero,
-          "Tipo": accion.tipoAccion,
-          "Descripción": accion.descripcionAccion,
-          "Fecha Implementación": accion.fechaImplementacion,
-          "Responsable": accion.responsableImplementacion,
-          "Resultado Esperado": accion.resultadoEsperado,
-          "Evidencia Requerida": accion.evidenciaRequerida,
-          "Observaciones": accion.observaciones,
-          "Estado Individual": accion.estadoIndividual,
-          "Cierre": accion.cierre,
-          "Fecha Cierre": accion.fechaCierre,
-          "Observación": accion.observacion,
-          "Evidencia": accion.evidencia,
-        })),
-      };
-
-      console.log("JSON Reporte de Acciones SIG-FO05", registroDetallado);
-      console.log("Objeto Completo:", [registro]);
-
-      return sortRegistrosByRecent([registro, ...items], formatoActivo.consecutivoPrefix);
-    });
-
-    setSelectedRegistro(null);
-    setActiveTab("historial");
-    setIsCreateModalOpen(false);
+      setRegistros((items) => sortRegistrosByRecent([payload.registro!, ...items], formatoActivo.consecutivoPrefix));
+      setSelectedRegistro(null);
+      setActiveTab("historial");
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "No fue posible guardar el reporte.");
+    }
   };
 
-  const updateRegistro = (registro: ReporteAccionesRegistro) => {
+  const updateRegistro = async (registro: ReporteAccionesRegistro) => {
+    setSaveError("");
     setRegistros((items) => items.map((item) => (item.id === registro.id ? registro : item)));
     setSelectedRegistro((current) => (current?.id === registro.id ? registro : current));
+
+    try {
+      const response = await fetch("/api/reporte-acciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "update-report", registro }),
+      });
+      const payload = (await response.json()) as { registro?: ReporteAccionesRegistro; error?: string };
+      if (!response.ok || !payload.registro) throw new Error(payload.error ?? "No fue posible actualizar el reporte.");
+
+      setRegistros((items) => items.map((item) => (item.id === payload.registro!.id ? payload.registro! : item)));
+      setSelectedRegistro((current) => (current?.id === payload.registro!.id ? payload.registro! : current));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "No fue posible actualizar el reporte.");
+    }
   };
 
   return (
     <main className="min-h-screen bg-[#eef3f8] px-4 py-4 text-[#071127] sm:px-6 lg:px-10">
       <div className="mx-auto max-w-[1360px] space-y-5">
         <ReporteAccionesTabs activeTab={activeTab} onChange={setActiveTab} />
+        {saveError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 shadow-sm">{saveError}</div>
+        ) : null}
+        {isLoading ? (
+          <section className="rounded-lg border border-[#d8e2ee] bg-white p-10 text-center shadow-sm">
+            <p className="font-black text-[#071127]">Cargando reportes de acciones...</p>
+          </section>
+        ) : null}
 
-        {activeTab === "historial" ? (
+        {!isLoading && activeTab === "historial" ? (
           <>
             <header className="overflow-hidden rounded-lg bg-[#111935] text-white shadow-lg shadow-slate-400/30 ring-1 ring-indigo-200">
               <div className="flex flex-col gap-5 bg-[radial-gradient(circle_at_82%_0%,rgba(61,72,140,0.62),transparent_34%)] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
@@ -611,19 +700,32 @@ export function ReporteAccionesPage() {
             </section>
 
             <HistorialReporteAccionesTable registros={registrosOrdenados} onView={setSelectedRegistro} />
-            {selectedRegistro ? <DetalleReporteModal registro={selectedRegistro} onClose={() => setSelectedRegistro(null)} onUpdate={updateRegistro} /> : null}
+            {selectedRegistro ? <DetalleReporteModal registro={selectedRegistro} usuarioActual={usuarioActual} onClose={() => setSelectedRegistro(null)} onUpdate={updateRegistro} /> : null}
           </>
-        ) : activeTab === "aprobacion" ? (
+        ) : !isLoading && activeTab === "aprobacion" ? (
           <CalidadReporteAccionesView mode="aprobacion" registros={registrosOrdenados} onUpdate={updateRegistro} />
-        ) : (
+        ) : !isLoading ? (
+          activeTab === "eficacia" ? (
           <CalidadReporteAccionesView mode="eficacia" registros={registrosOrdenados} onUpdate={updateRegistro} />
-        )}
+          ) : (
+            <ConfiguracionReporteAccionesView
+              usuarios={usuarios}
+              empresaActiva={empresaActiva}
+              codigoFormato={formatoActivo.codigo}
+              usuarioActualId={usuarioActualId}
+              onUsuarioActualChange={setUsuarioActualId}
+              onAddUsuario={(usuario) => setUsuarios((items) => [...items, usuario])}
+              onDeleteUsuario={(usuarioId) => setUsuarios((items) => items.filter((item) => item.id !== usuarioId))}
+            />
+          )
+        ) : null}
       </div>
       {isCreateModalOpen ? (
         <CrearReporteModal
           codigoFormato={formatoActivo.codigo}
           versionFormato={formatoActivo.version}
           usuarioActual={usuarioActual}
+          lideresProceso={lideresProceso}
           onClose={() => setIsCreateModalOpen(false)}
           onSave={createRegistro}
         />

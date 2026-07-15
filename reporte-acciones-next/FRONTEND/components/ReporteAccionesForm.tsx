@@ -72,13 +72,15 @@ type ReporteAccionesFormProps = {
   codigoFormato: string;
   versionFormato: string;
   usuarioActual?: UsuarioReporteAcciones;
+  lideresProceso: UsuarioReporteAcciones[];
   onSave?: (reporte: ReporteAccionesData) => void;
 };
 
-export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActual, onSave }: ReporteAccionesFormProps) {
+export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActual, lideresProceso, onSave }: ReporteAccionesFormProps) {
   const [reporte, setReporte] = useState<ReporteAccionesData>(() => createEmptyReporte(codigoFormato, versionFormato));
   const [accionForm, setAccionForm] = useState<AccionFormState>(emptyAccionForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [liderProcesoId, setLiderProcesoId] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
   const [accionError, setAccionError] = useState("");
   const [formError, setFormError] = useState("");
@@ -234,6 +236,7 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
     if (!reporte.consecuencias.trim()) return "Falta diligenciar el campo: Consecuencias.";
     if (!reporte.riesgosOportunidades.trim()) return "Falta diligenciar el campo: Riesgos y oportunidades.";
     if (reporte.acciones.length === 0) return "Falta agregar al menos una acción.";
+    if (usuarioActual?.rol !== "Líder de proceso" && !liderProcesoId) return "Falta seleccionar el líder del proceso.";
 
     return "";
   };
@@ -288,9 +291,13 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
       ...reporte,
       codigo: codigoFormato,
       version: versionFormato,
+      liderProcesoId: liderProcesoId || (usuarioActual?.rol === "Líder de proceso" ? usuarioActual.id : undefined),
       usuarioCreador: usuarioActual?.nombre ?? "Usuario ROCA",
-      estado: "En revisión de Calidad",
-      aprobadorActual: "Gestión de Calidad",
+      estado: usuarioActual?.rol === "Líder de proceso" && !liderProcesoId ? "En revisión de Calidad" : "Pendiente aprobación líder",
+      aprobadorActual:
+        usuarioActual?.rol === "Líder de proceso" && !liderProcesoId
+          ? "Gestión de Calidad"
+          : lideresProceso.find((lider) => lider.id === liderProcesoId)?.nombre ?? "Líder de proceso",
     };
     setReporte(reporteEnviado);
     console.log(`JSON Reporte de Acciones ${reporteEnviado.codigo}`, [reporteEnviado]);
@@ -522,6 +529,16 @@ export function ReporteAccionesForm({ codigoFormato, versionFormato, usuarioActu
                 className={`${inputClassName} bg-slate-100 text-slate-500`}
               />
             </Field>
+
+            <DynamicSelect
+              id="liderProceso"
+              label={usuarioActual?.rol === "Líder de proceso" ? "Asignar a otro líder de proceso" : "Líder de proceso"}
+              icon={<UserRound className="size-5 text-blue-700" />}
+              value={liderProcesoId}
+              options={["", ...lideresProceso.filter((lider) => lider.id !== usuarioActual?.id).map((lider) => lider.id)]}
+              optionLabels={Object.fromEntries(lideresProceso.map((lider) => [lider.id, `${lider.nombre}${lider.proceso ? ` - ${lider.proceso}` : ""}`]))}
+              onChange={(value) => setLiderProcesoId(value)}
+            />
           </div>
         </SectionWrapper>
       ) : null}

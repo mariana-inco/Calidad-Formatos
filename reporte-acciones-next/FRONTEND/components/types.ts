@@ -2,6 +2,7 @@ export type TipoHallazgo = "" | "No Conformidad" | "Oportunidad de Mejora" | "Sa
 
 export type ReporteEstado =
   | "Borrador"
+  | "Pendiente aprobación líder"
   | "En revisión de Calidad"
   | "Devuelto para corrección"
   | "Aprobado por Calidad"
@@ -79,6 +80,7 @@ export type ReporteAccionesData = {
   fechaFormato: "2025-10-01";
   version: string;
   proceso: string;
+  liderProcesoId?: string;
   fechaHallazgo: string;
   tipoHallazgo: TipoHallazgo;
   fuente: string;
@@ -103,7 +105,7 @@ export type ReporteAccionesData = {
   validacionEficacia?: ValidacionEficacia;
 };
 
-export type ReporteAccionesRol = "Líder de proceso" | "Calidad";
+export type ReporteAccionesRol = "Colaborador" | "Líder de proceso" | "Calidad";
 
 export type UsuarioReporteAcciones = {
   id: string;
@@ -120,6 +122,9 @@ export type ReporteAccionesRegistro = {
   consecutivo: string;
   fechaCreacion: string;
   liderProceso: string;
+  liderProcesoId?: string;
+  creadorId?: string;
+  creadorNombre?: string;
   proceso: string;
   tipoHallazgo: string;
   estado: ReporteEstado;

@@ -9,15 +9,16 @@ type DynamicSelectProps = {
   icon?: React.ReactNode;
   value: string;
   options: readonly string[];
+  optionLabels?: Record<string, string>;
   placeholder?: string;
   compact?: boolean;
   onChange: (value: string) => void;
 };
 
-export function DynamicSelect({ id, label, icon, value, options, placeholder = "Seleccione una opción", compact = false, onChange }: DynamicSelectProps) {
+export function DynamicSelect({ id, label, icon, value, options, optionLabels = {}, placeholder = "Seleccione una opción", compact = false, onChange }: DynamicSelectProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const displayValue = value || placeholder;
+  const displayValue = value ? optionLabels[value] ?? value : placeholder;
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -82,7 +83,7 @@ export function DynamicSelect({ id, label, icon, value, options, placeholder = "
           }`}
         >
           {options.map((option) => {
-            const optionLabel = option || placeholder;
+            const optionLabel = option ? optionLabels[option] ?? option : placeholder;
             const isSelected = value === option;
 
             return (

@@ -60,10 +60,6 @@ export function canEditCorrection(registro: GestionCambio, usuario?: UsuarioGest
   );
 }
 
-export function hasQualityInitialReview(registro: GestionCambio) {
-  return registro.historial.some((decision) => decision.accion === "VALIDAR_REMITIR" || decision.accion === "SOLICITAR_CORRECCION");
-}
-
 export function hasApproverDecision(registro: GestionCambio, usuario?: UsuarioGestionCambio) {
   return registro.historial.some(
     (decision) =>
@@ -91,10 +87,6 @@ export function filterRegistrosForApproval(registros: GestionCambio[], usuario?:
   return registros.filter((registro) => {
     if (registro.empresa !== usuario.empresa) return false;
     if (!allowedStates.includes(registro.estado)) return false;
-
-    if (usuario.rol === "GESTION_CALIDAD" && registro.estado === "EN_REVISION_CALIDAD" && hasQualityInitialReview(registro)) {
-      return false;
-    }
 
     if (usuario.rol === "GERENCIA_ADMINISTRATIVA" || usuario.rol === "APROBADOR_ADICIONAL") {
       if (hasApproverDecision(registro, usuario)) return false;

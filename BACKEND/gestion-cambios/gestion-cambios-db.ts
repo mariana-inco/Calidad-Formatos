@@ -7,7 +7,7 @@ import type {
   SeguimientoCambioData,
   SolicitudCambioData,
   UsuarioGestionCambio,
-} from "@/app/gestion-cambios/components/types";
+} from "@/FRONTEND/gestion-cambios/components/types";
 import { prisma } from "./prisma";
 
 const roleLabels: Record<GestionCambioRol, string> = {
